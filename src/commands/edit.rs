@@ -27,7 +27,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
                     })
             })
             .await;
-        return Ok(());
+        return Err("only 1 file required".to_owned());
     }
 
     // Create interaction response asking what edit to apply
@@ -59,6 +59,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
         .await
     {
         println!("Cannot respond to application command: {}", why);
+        return Err("can not send msg".to_owned());
     }
     // Get message of interaction reponse
     let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await.unwrap();
@@ -77,9 +78,9 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
                     .components(|comp| comp)
             })
             .await {
-                println!("Can't send timeout message: {}", why);
+                println!("can not send timeout message: {}", why);
             };
-            return Ok(());
+            return Err("can not send msg".to_owned());
         }
     };
 
@@ -104,6 +105,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
         .await
     {
         println!("Cannot respond to slash command: {}", why);
+        return Err("can not send msg".to_owned());
     }
     // Await file download
     let file = message.attachments[0].download().await.unwrap();
@@ -115,14 +117,16 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
 
     // Creating working directory
     if let Err(why) = fs::create_dir(&dir).await {
-        println!("Error creating directory: {}", why)
+        println!("Error creating directory: {}", why);
+        return Err("can not create dir".to_owned());
     }
     let path = dir.join(&message.attachments[0].filename);
 
     // Writing file to disk
     let mut buffer = File::create(&path).await.unwrap();
     if let Err(why) = buffer.write_all(&file).await {
-        println!("Error saving file: {}", why)
+        println!("Error saving file: {}", why);
+        return Err("can not save file".to_owned());
     };
 
     // Notify file editing
@@ -138,6 +142,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
         .await
     {
         println!("Cannot respond to slash command: {}", why);
+        return Err("can not send msg".to_owned());
     }
 
     // Edit file
@@ -161,6 +166,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
         .await
     {
         println!("Cannot respond to slash command: {}", why);
+        return Err("can not send msg".to_owned());
     }
 
     // Upload files (sends message)
@@ -174,11 +180,12 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
         .await
     {
         println!("Error uploading file: {}", why);
+        return Err("can't send msg".to_owned());
     }
 
     // Delete working dir
     if let Err(why) = remove_dir_all(dir).await {
-        println!("Can't delete videos directory: {}", why);
+        println!("can not delete videos directory: {}", why);
     }
 
     // Edit original interaction to notify sucess

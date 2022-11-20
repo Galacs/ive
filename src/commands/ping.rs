@@ -13,6 +13,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
         .await
     {
         println!("Cannot respond to slash command: {}", why);
+        return Err("Cannot respond to slash command".to_owned());
     }
     Ok(())
 }
