@@ -12,6 +12,7 @@ use serenity::{
 use crate::flows::info::Info;
 
 pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original_msg: &Message) -> Result<Info, ()>{
+    // Display modal asking for target size
     if let Err(why) = cmd
         .create_interaction_response(&ctx.http, |response| {
             response
@@ -41,8 +42,10 @@ pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original
     {
         println!("Cannot respond to slash command: {}", why);
     }
+    // Get message of interaction reponse
     let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await.unwrap();
 
+    // Await modal reponse
     let interaction = match interaction_reponse
         .await_modal_interaction(&ctx)
         .timeout(Duration::from_secs(60 * 3))
@@ -60,14 +63,18 @@ pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original
             return Err(());
         }
     };
+    // Extract target size from modal response
     let input: &ActionRowComponent = &interaction.data.components[0].components[0];
     let t_size = match input {
         ActionRowComponent::InputText(txt) => txt.value.parse::<f32>().unwrap(),
         _ => 0.0,
     };
+    // Ack modal interaction
     if let Err(why) = interaction.defer(&ctx.http).await {
         println!("Cannot respond to slash command: {}", why);
     };
+
+    // Return target size
     Ok(Info::EncodeToSize(t_size))
 }
 
