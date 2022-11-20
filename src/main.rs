@@ -1,4 +1,5 @@
 mod commands;
+mod flows;
 mod utils;
 
 use std::env;
@@ -8,7 +9,7 @@ use serenity::async_trait;
 use serenity::model::application::interaction::{Interaction, InteractionResponseType};
 use serenity::model::gateway::Ready;
 use serenity::model::id::GuildId;
-use serenity::model::prelude::command::{Command, CommandType};
+use serenity::model::prelude::command::CommandType;
 use serenity::prelude::*;
 use tokio::fs::create_dir;
 
@@ -20,32 +21,33 @@ impl EventHandler for Handler {
         if let Interaction::ApplicationCommand(command) = interaction {
             // println!("Received command interaction: {:#?}", command);
 
-            let mut matched = true;
-
             let result = match command.data.name.as_str() {
                 "ping" => commands::ping::run(&command, &ctx).await,
                 "Edit video" => commands::edit::run(&command, &ctx).await,
                 _ => Err("not implemented".to_owned()),
             };
-            if matched { return }
+            if let Err(_) = result {
+                return;
+            }
             if let Err(why) = command
-            .create_interaction_response(&ctx.http, |response| {
-                response
-                    .kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|message| message.content("not implemented :(".to_string(),))
-            })
-            .await
-        {
-            println!("Cannot respond to slash command: {}", why);
-        }
-        println!("{}", command.data.name.as_str())
-
+                .create_interaction_response(&ctx.http, |response| {
+                    response
+                        .kind(InteractionResponseType::ChannelMessageWithSource)
+                        .interaction_response_data(|message| {
+                            message.content("not implemented :(".to_string())
+                        })
+                })
+                .await
+            {
+                println!("Cannot respond to slash command: {}", why);
+            }
+            println!("{}", command.data.name.as_str())
         }
     }
 
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
-        
+
         let guild_id = GuildId(
             env::var("GUILD_ID")
                 .expect("Expected GUILD_ID in environment")
@@ -53,14 +55,16 @@ impl EventHandler for Handler {
                 .expect("GUILD_ID must be an integer"),
         );
 
-        let commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
+        let _commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
             commands
                 .create_application_command(|command| commands::ping::register(command))
-                .create_application_command(|command| commands::edit::register(command).kind(CommandType::Message))
+                .create_application_command(|command| {
+                    commands::edit::register(command).kind(CommandType::Message)
+                })
         })
         .await;
 
-        // println!("I now have the following guild slash commands: {:#?}", commands);
+        // println!("I now have the following guild slash commands: {:#?}", _commands);
 
         // let guild_command = Command::create_global_application_command(&ctx.http, |command| {
         //     commands::ping::register(command)
