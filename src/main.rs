@@ -6,7 +6,7 @@ use std::env;
 use std::path::Path;
 
 use serenity::async_trait;
-use serenity::model::application::interaction::{Interaction, InteractionResponseType};
+use serenity::model::application::interaction::Interaction;
 use serenity::model::gateway::Ready;
 use serenity::model::id::GuildId;
 use serenity::model::prelude::command::CommandType;
@@ -26,22 +26,9 @@ impl EventHandler for Handler {
                 "Edit video" => commands::edit::run(&command, &ctx).await,
                 _ => Err("not implemented".to_owned()),
             };
-            if let Err(_) = result {
-                return;
+            if let Err(why) = result {
+                println!("{}", why);
             }
-            if let Err(why) = command
-                .create_interaction_response(&ctx.http, |response| {
-                    response
-                        .kind(InteractionResponseType::ChannelMessageWithSource)
-                        .interaction_response_data(|message| {
-                            message.content("not implemented :(".to_string())
-                        })
-                })
-                .await
-            {
-                println!("Cannot respond to slash command: {}", why);
-            }
-            println!("{}", command.data.name.as_str())
         }
     }
 

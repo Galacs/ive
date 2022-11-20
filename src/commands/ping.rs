@@ -1,13 +1,10 @@
 use serenity::builder::CreateApplicationCommand;
-use serenity::model::prelude::component::InputTextStyle;
-use serenity::model::prelude::interaction::application_command::{
-    ApplicationCommandInteraction, CommandDataOption,
-};
+use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
 pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(), String> {
-        if let Err(why) = cmd
+    if let Err(why) = cmd
         .create_interaction_response(&ctx.http, |response| {
             response
                 .kind(InteractionResponseType::ChannelMessageWithSource)

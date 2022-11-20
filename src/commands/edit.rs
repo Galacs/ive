@@ -10,6 +10,7 @@ use tokio::fs::{self, remove_dir_all, File};
 use tokio::io::AsyncWriteExt;
 
 use crate::flows;
+use crate::flows::info::Info;
 
 pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(), String> {
     // Get message the command was called on
@@ -70,12 +71,14 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
     {
         Some(x) => x,
         None => {
-            cmd.edit_original_interaction_response(&ctx.http, |response| {
+            if let Err(why) = cmd.edit_original_interaction_response(&ctx.http, |response| {
                 response
                     .content("T trop lent, j'ai pas ton temps")
                     .components(|comp| comp)
             })
-            .await;
+            .await {
+                println!("Can't send timeout message: {}", why);
+            };
             return Ok(());
         }
     };
@@ -139,7 +142,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
 
     // Edit file
     match info {
-        Ok(flows::encode_to_size::Info::EncodeToSize(t_size)) => {
+        Ok(Info::EncodeToSize(t_size)) => {
             flows::encode_to_size::run(&path, dest_file.to_str().unwrap(), t_size).await
         }
         _ => {}

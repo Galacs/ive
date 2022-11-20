@@ -9,9 +9,7 @@ use serenity::{
     prelude::Context,
 };
 
-pub enum Info {
-    EncodeToSize(f32)
-}
+use crate::flows::info::Info;
 
 pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original_msg: &Message) -> Result<Info, ()>{
     if let Err(why) = cmd
