@@ -10,7 +10,8 @@ use tokio::fs::{self, remove_dir_all, File};
 use tokio::io::AsyncWriteExt;
 
 use crate::flows;
-use crate::flows::info::Info;
+
+use ive_models::Job;
 
 pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(), String> {
     // Get message the command was called on
@@ -147,10 +148,10 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
 
     // Edit file
     match info {
-        Ok(Info::EncodeToSize(t_size)) => {
-            flows::encode_to_size::run(&path, dest_file.to_str().unwrap(), t_size).await
-        }
-        _ => {}
+        Ok(Job::EncodeToSize(_, params)) => {
+            flows::encode_to_size::run(&path, dest_file.to_str().unwrap(), params).await
+        },
+        _ => {},
     }
 
     // Notify file upload

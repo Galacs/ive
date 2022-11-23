@@ -9,9 +9,9 @@ use serenity::{
     prelude::Context,
 };
 
-use crate::flows::info::Info;
+use ive_models::{Job, EncodeToSizeParameters, Video, VideoURI};
 
-pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original_msg: &Message) -> Result<Info, ()>{
+pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original_msg: &Message) -> Result<Job, ()>{
     // Display modal asking for target size
     if let Err(why) = cmd
         .create_interaction_response(&ctx.http, |response| {
@@ -75,11 +75,13 @@ pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original
     };
 
     // Return target size
-    Ok(Info::EncodeToSize(t_size))
+    Ok(Job::EncodeToSize(None, EncodeToSizeParameters { target_size: (t_size * 2_f32.powf(20.0)) as u32 }))
 }
 
-pub async fn run(path: &Path, dest_file: &str, t_size: f32) {
-    if let Err(why) = ffedit::encoding::encode_to_size(&path, t_size, dest_file) {
+pub async fn run(path: &Path, dest_file: &str, params: EncodeToSizeParameters) {
+    let video_uri = VideoURI::Path(path.to_str().unwrap().to_owned());
+    let video = Video { url: video_uri };
+    if let Err(why) = ffedit::encoding::encode_to_size(&video, params, dest_file) {
         println!("Error encoding file: {:?}", why);
     }
 }

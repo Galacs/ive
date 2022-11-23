@@ -183,6 +183,7 @@ name = "ffedit"
 version = "0.1.0"
 dependencies = [
  "ffmpeg-next",
+ "ive-models",
 ]
 
 [[package]]
@@ -469,9 +470,14 @@ name = "ive"
 version = "0.1.0"
 dependencies = [
  "ffedit",
+ "ive-models",
  "serenity",
  "tokio",
 ]
+
+[[package]]
+name = "ive-models"
+version = "0.1.0"
 
 [[package]]
 name = "js-sys"
