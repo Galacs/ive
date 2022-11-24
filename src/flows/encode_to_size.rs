@@ -9,7 +9,7 @@ use serenity::{
     prelude::Context,
 };
 
-use ive_models::{Job, EncodeToSizeParameters, Video, VideoURI};
+use models::{Job, EncodeToSizeParameters, Video, VideoURI};
 
 pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original_msg: &Message) -> Result<Job, ()>{
     // Display modal asking for target size

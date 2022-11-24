@@ -13,6 +13,7 @@ use serenity::model::prelude::command::CommandType;
 use serenity::prelude::*;
 use tokio::fs::create_dir;
 
+extern crate models;
 struct Handler;
 
 #[async_trait]

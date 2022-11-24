@@ -11,7 +11,7 @@ use tokio::io::AsyncWriteExt;
 
 use crate::flows;
 
-use ive_models::Job;
+use models::Job;
 
 pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(), String> {
     // Get message the command was called on
