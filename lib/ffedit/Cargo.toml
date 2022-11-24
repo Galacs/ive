@@ -1,0 +1,10 @@
+[package]
+name = "ffedit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ffmpeg-next = { version = "5.1.1", features = [ "codec", "format" ] }
+models = { path = "../models" }

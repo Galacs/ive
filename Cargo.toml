@@ -11,5 +11,5 @@ members  = [".", "lib/*"]
 [dependencies]
 serenity = { version = "0.11.5", default-features = false, features = ["client", "gateway", "rustls_backend", "model", "collector"] }
 tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
-ffedit = { path = "../ffedit" }
+ffedit = { path = "lib/ffedit" }
 models = { path = "lib/models" }
