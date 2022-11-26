@@ -6,10 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ffedit = { path = "../ffedit" }
-models = { path = "../models" }
-redis = { version = "0.22.1", features = ["tokio-comp"] }
-tokio = { version = "1.22.0", features = ["full"] }
-async-trait = "0.1.58"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+ffedit = { workspace = true }
+models = { workspace = true }
+redis = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

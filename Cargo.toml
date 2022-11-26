@@ -8,9 +8,18 @@ edition = "2021"
 [workspace]
 members  = [".", "lib/*"]
 
-[dependencies]
+[workspace.dependencies]
 serenity = { version = "0.11.5", default-features = false, features = ["client", "gateway", "rustls_backend", "model", "collector"] }
 tokio = { version = "1.21.2", features = ["macros", "rt-multi-thread"] }
 ffedit = { path = "lib/ffedit" }
 models = { path = "lib/models" }
 queue = { path = "lib/queue" }
+redis = { version = "0.22.1", features = ["tokio-comp"] }
+async-trait = "0.1.58"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dependencies]
+serenity = { workspace = true }
+tokio = { workspace = true }
+models = { workspace = true }

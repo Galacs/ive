@@ -7,4 +7,4 @@ edition = "2021"
 
 [dependencies]
 ffmpeg-next = { version = "5.1.1", features = [ "codec", "format" ] }
-models = { path = "../models" }
+models = { workspace = true }
