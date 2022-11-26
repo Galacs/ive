@@ -3,18 +3,18 @@ use serenity::model::prelude::interaction::application_command::ApplicationComma
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
-pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(), String> {
-    if let Err(why) = cmd
-        .create_interaction_response(&ctx.http, |response| {
-            response
-                .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|message| message.content("Pong !"))
-        })
-        .await
-    {
-        println!("Cannot respond to slash command: {}", why);
-        return Err("Cannot respond to slash command".to_owned());
-    }
+use crate::InteractionError;
+
+pub async fn run(
+    cmd: &ApplicationCommandInteraction,
+    ctx: &Context,
+) -> Result<(), InteractionError> {
+    cmd.create_interaction_response(&ctx.http, |response| {
+        response
+            .kind(InteractionResponseType::ChannelMessageWithSource)
+            .interaction_response_data(|message| message.content("Pong !"))
+    })
+    .await?;
     Ok(())
 }
 

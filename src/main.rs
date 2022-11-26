@@ -5,6 +5,7 @@ mod utils;
 use std::env;
 use std::path::Path;
 
+use models::InteractionError;
 use serenity::async_trait;
 use serenity::model::application::interaction::Interaction;
 use serenity::model::gateway::Ready;
@@ -13,7 +14,6 @@ use serenity::model::prelude::command::CommandType;
 use serenity::prelude::*;
 use tokio::fs::create_dir;
 
-extern crate models;
 struct Handler;
 
 #[async_trait]
@@ -25,10 +25,10 @@ impl EventHandler for Handler {
             let result = match command.data.name.as_str() {
                 "ping" => commands::ping::run(&command, &ctx).await,
                 "Edit video" => commands::edit::run(&command, &ctx).await,
-                _ => Err("not implemented".to_owned()),
+                _ => Err(InteractionError::NotImplemented),
             };
             if let Err(why) = result {
-                println!("{}", why);
+                println!("{:?}", why);
             }
         }
     }

@@ -4,24 +4,6 @@ use redis::{AsyncCommands, RedisError};
 use async_trait::async_trait;
 use models::*;
 
-#[derive(Debug)]
-pub enum QueueError {
-    Redis(RedisError),
-    Serde(serde_json::Error),
-}
-
-impl From<RedisError> for QueueError {
-    fn from(error: RedisError) -> Self {
-        QueueError::Redis(error)
-    }
-}
-
-impl From<serde_json::Error> for QueueError {
-    fn from(errror: serde_json::Error) -> Self {
-        QueueError::Serde(errror)
-    }
-}
-
 #[async_trait]
 pub trait Queue {
     async fn send_job(&self, conn: &mut redis::aio::Connection) -> Result<u64, QueueError>;

@@ -10,60 +10,68 @@ use tokio::fs::{self, remove_dir_all, File};
 use tokio::io::AsyncWriteExt;
 
 use crate::flows;
+use models::{EditError, InteractionError};
 
 use models::Job;
 
-pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(), String> {
+pub async fn run(
+    cmd: &ApplicationCommandInteraction,
+    ctx: &Context,
+) -> Result<(), InteractionError> {
     // Get message the command was called on
-    let message = &cmd.data.resolved.messages.iter().next().unwrap().1;
+    let message = &cmd
+        .data
+        .resolved
+        .messages
+        .iter()
+        .next()
+        .ok_or(InteractionError::Error)?
+        .1;
 
     // Check if the message contains a valid number of attachments
-    if message.attachments.len() != 1 {
-        let _ = cmd
-            .create_interaction_response(&ctx.http, |response| {
-                response
-                    .kind(InteractionResponseType::ChannelMessageWithSource)
-                    .interaction_response_data(|message| {
-                        message.content("Le message doit contenir exlusivement une seule vidéo")
-                    })
-            })
-            .await;
-        return Err("only 1 file required".to_owned());
+    let number_of_files = message.attachments.len();
+    if number_of_files != 1 {
+        cmd.create_interaction_response(&ctx.http, |response| {
+            response
+                .kind(InteractionResponseType::ChannelMessageWithSource)
+                .interaction_response_data(|message| {
+                    message.content("Le message doit contenir exlusivement une seule vidéo")
+                })
+        })
+        .await?;
+        return Err(crate::InteractionError::Edit(EditError::WrongFileNumber(
+            number_of_files as u32,
+        )));
     }
 
     // Create interaction response asking what edit to apply
-    if let Err(why) = cmd
-        .create_interaction_response(&ctx.http, |response| {
-            response
-                .kind(InteractionResponseType::ChannelMessageWithSource)
-                .interaction_response_data(|m| {
-                    m.content(format!(
-                        "Que voulez vous faire avec **{}**...",
-                        message.attachments[0].filename
-                    ));
-                    m.components(|comps| {
-                        comps.create_action_row(|row| {
-                            row.create_select_menu(|menu| {
-                                menu.custom_id("edit_kind");
-                                menu.placeholder("Choisissez une modification");
-                                menu.options(|f| {
-                                    f.create_option(|o| {
-                                        o.label("Changer la taille du fichier")
-                                            .value("encode_to_size")
-                                    })
+    cmd.create_interaction_response(&ctx.http, |response| {
+        response
+            .kind(InteractionResponseType::ChannelMessageWithSource)
+            .interaction_response_data(|m| {
+                m.content(format!(
+                    "Que voulez vous faire avec **{}**...",
+                    message.attachments[0].filename
+                ));
+                m.components(|comps| {
+                    comps.create_action_row(|row| {
+                        row.create_select_menu(|menu| {
+                            menu.custom_id("edit_kind");
+                            menu.placeholder("Choisissez une modification");
+                            menu.options(|f| {
+                                f.create_option(|o| {
+                                    o.label("Changer la taille du fichier")
+                                        .value("encode_to_size")
                                 })
                             })
                         })
                     })
                 })
-        })
-        .await
-    {
-        println!("Cannot respond to application command: {}", why);
-        return Err("can not send msg".to_owned());
-    }
+            })
+    })
+    .await?;
     // Get message of interaction reponse
-    let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await.unwrap();
+    let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
 
     // Await edit apply choice (with timeout)
     let cmd = match interaction_reponse
@@ -73,15 +81,13 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
     {
         Some(x) => x,
         None => {
-            if let Err(why) = cmd.edit_original_interaction_response(&ctx.http, |response| {
+            cmd.edit_original_interaction_response(&ctx.http, |response| {
                 response
                     .content("T trop lent, j'ai pas ton temps")
                     .components(|comp| comp)
             })
-            .await {
-                println!("can not send timeout message: {}", why);
-            };
-            return Err("can not send msg".to_owned());
+            .await?;
+            return Err(InteractionError::Timeout);
         }
     };
 
@@ -90,107 +96,83 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
 
     // Match edit kinds
     let info = match edit_kind.as_str() {
-        "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await,
-        _ => Err(()),
+        "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
+        _ => {
+            return Err(InteractionError::InvalidInput(
+                models::InvalidInputError::Error,
+            ))
+        }
     };
 
     // Notify file download
-    if let Err(why) = cmd
-        .edit_original_interaction_response(&ctx, |r| {
-            r.content(format!(
-                "Telechargement de **{}**...",
-                message.attachments[0].filename
-            ))
-            .components(|comp| comp)
-        })
-        .await
-    {
-        println!("Cannot respond to slash command: {}", why);
-        return Err("can not send msg".to_owned());
-    }
+    cmd.edit_original_interaction_response(&ctx, |r| {
+        r.content(format!(
+            "Telechargement de **{}**...",
+            message.attachments[0].filename
+        ))
+        .components(|comp| comp)
+    })
+    .await?;
+
     // Await file download
-    let file = message.attachments[0].download().await.unwrap();
+    let file = message.attachments[0].download().await?;
 
     // Define working directory and destination filepath
     let dir = Path::new("tmpfs").join(format!("{}", cmd.token));
-    let dir = std::env::current_dir().unwrap().join(dir);
+    let dir = std::env::current_dir()?.join(dir);
     let dest_file = dir.join(&format!("edit-{}", message.attachments[0].filename));
 
     // Creating working directory
-    if let Err(why) = fs::create_dir(&dir).await {
-        println!("Error creating directory: {}", why);
-        return Err("can not create dir".to_owned());
-    }
+    fs::create_dir(&dir).await?;
     let path = dir.join(&message.attachments[0].filename);
 
     // Writing file to disk
-    let mut buffer = File::create(&path).await.unwrap();
-    if let Err(why) = buffer.write_all(&file).await {
-        println!("Error saving file: {}", why);
-        return Err("can not save file".to_owned());
-    };
+    let mut buffer = File::create(&path).await?;
+    buffer.write_all(&file).await?;
 
     // Notify file editing
-    if let Err(why) = cmd
-        .edit_original_interaction_response(&ctx.http, |response| {
-            response
-                .content(format!(
-                    "Modification de **{}**...",
-                    message.attachments[0].filename
-                ))
-                .components(|comp| comp)
-        })
-        .await
-    {
-        println!("Cannot respond to slash command: {}", why);
-        return Err("can not send msg".to_owned());
-    }
+    cmd.edit_original_interaction_response(&ctx.http, |response| {
+        response
+            .content(format!(
+                "Modification de **{}**...",
+                message.attachments[0].filename
+            ))
+            .components(|comp| comp)
+    })
+    .await?;
 
     // Edit file
     match info {
-        Ok(Job::EncodeToSize(_, params)) => {
-            flows::encode_to_size::run(&path, dest_file.to_str().unwrap(), params).await
-        },
-        _ => {},
+        Job::EncodeToSize(_, params) => {
+            flows::encode_to_size::run(&path, dest_file.to_str().unwrap_or_default(), params).await
+        }
     }
 
     // Notify file upload
-    if let Err(why) = cmd
-        .edit_original_interaction_response(&ctx.http, |response| {
-            response
-                .content(format!(
-                    "Envoi de **{}** modifié...",
-                    message.attachments[0].filename
-                ))
-                .components(|comp| comp)
-        })
-        .await
-    {
-        println!("Cannot respond to slash command: {}", why);
-        return Err("can not send msg".to_owned());
-    }
+    cmd.edit_original_interaction_response(&ctx.http, |response| {
+        response
+            .content(format!(
+                "Envoi de **{}** modifié...",
+                message.attachments[0].filename
+            ))
+            .components(|comp| comp)
+    })
+    .await?;
 
     // Upload files (sends message)
-    let paths = vec![dest_file.to_str().unwrap()];
+    let paths = vec![dest_file.to_str().unwrap_or_default()];
 
-    if let Err(why) = cmd
-        .channel_id
+    cmd.channel_id
         .send_files(&ctx.http, paths, |m| {
             m.content(format!("**{}**:", message.attachments[0].filename))
         })
-        .await
-    {
-        println!("Error uploading file: {}", why);
-        return Err("can't send msg".to_owned());
-    }
+        .await?;
 
     // Delete working dir
-    if let Err(why) = remove_dir_all(dir).await {
-        println!("can not delete videos directory: {}", why);
-    }
+    remove_dir_all(dir).await?;
 
     // Edit original interaction to notify sucess
-    if let Err(why) = cmd
+    cmd
         .edit_original_interaction_response(&ctx.http, |response| {
             response
                 .content(format!(
@@ -199,10 +181,7 @@ pub async fn run(cmd: &ApplicationCommandInteraction, ctx: &Context) -> Result<(
                 ))
                 .components(|comp| comp)
         })
-        .await
-    {
-        println!("Cannot respond to slash command: {}", why);
-    }
+        .await?;
 
     Ok(())
 }
