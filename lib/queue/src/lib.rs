@@ -1,11 +1,8 @@
 extern crate redis;
-use redis::{AsyncCommands, Commands, RedisError};
-
-use std::thread::{self, JoinHandle};
+use redis::{AsyncCommands, RedisError};
 
 use async_trait::async_trait;
 use models::*;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
 pub enum QueueError {
@@ -34,16 +31,9 @@ pub trait Queue {
 #[async_trait]
 impl Queue for Job {
     async fn send_job(&self, conn: &mut redis::aio::Connection) -> Result<u64, QueueError> {
-        match self {
-            Job::EncodeToSize(video, _) => match video.as_ref().unwrap().url {
-                VideoURI::Path(_) => {
-                    let serialized = serde_json::to_string(self)?;
-                    conn.lpush("queue", serialized).await?;
-                    return Ok(conn.incr("nonce", 1).await?);
-                }
-                _ => return Ok(0),
-            },
-        }
+        let serialized = serde_json::to_string(self)?;
+        conn.lpush("queue", serialized).await?;
+        return Ok(conn.incr("nonce", 1).await?);
     }
     async fn receive_job(&self, conn: &mut redis::aio::Connection) -> Result<Job, QueueError> {
         let str: String = conn.rpop("queue", None).await?;
