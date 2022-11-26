@@ -14,6 +14,7 @@ pub enum VideoURI {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Video {
     pub url: VideoURI,
+    pub id: String
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -22,8 +23,11 @@ pub enum Job {
 }
 
 impl Video {
-    pub fn new(uri: VideoURI) -> Video {
-        Video { url: uri }
+    pub fn new(uri: VideoURI, id: Option<String>) -> Video {
+        if let Some(str) = id {
+            return Video { url: uri, id: str }
+        }
+        Video { url: uri, id: "".to_owned() }
     }
 }
 
