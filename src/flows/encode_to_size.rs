@@ -80,7 +80,7 @@ pub async fn get_info(cmd: &MessageComponentInteraction, ctx: &Context, original
 
 pub async fn run(path: &Path, dest_file: &str, params: EncodeToSizeParameters) {
     let video_uri = VideoURI::Path(path.to_str().unwrap().to_owned());
-    let video = Video { url: video_uri };
+    let video = Video::new(video_uri, None);
     if let Err(why) = ffedit::encoding::encode_to_size(&video, params, dest_file) {
         println!("Error encoding file: {:?}", why);
     }
