@@ -1,7 +1,8 @@
 extern crate redis;
-use redis::{AsyncCommands, RedisError};
+use redis::AsyncCommands;
 
 use async_trait::async_trait;
+use models::queue::QueueError;
 use models::*;
 
 #[async_trait]

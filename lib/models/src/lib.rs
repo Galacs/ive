@@ -35,7 +35,7 @@ impl Video {
     }
 }
 
-mod queue {
+pub mod queue {
     use redis::RedisError;
 
     #[derive(Debug)]
