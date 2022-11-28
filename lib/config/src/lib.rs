@@ -21,3 +21,7 @@ pub fn get_s3_bucket() -> Bucket {
 
     bucket
 }
+
+pub fn get_redis_client() -> redis::Client {
+    redis::Client::open("redis://192.168.0.58/").unwrap()
+}

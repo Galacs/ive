@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 rust-s3 = { workspace = true }
+redis = { workspace = true }

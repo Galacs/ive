@@ -1,13 +1,9 @@
-use std::path::Path;
 use std::time::Duration;
 
 use serenity::builder::CreateApplicationCommand;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
-
-use tokio::fs::{self, remove_dir_all, File};
-use tokio::io::AsyncWriteExt;
 
 use crate::flows;
 use models::{EditError, InteractionError, Video};
@@ -99,7 +95,7 @@ pub async fn run(
     let edit_kind = &cmd.data.values[0].to_owned();
 
     // Match edit kinds
-    let mut params = match edit_kind.as_str() {
+    let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
         _ => {
             return Err(InteractionError::InvalidInput(
@@ -129,18 +125,12 @@ pub async fn run(
     })
     .await?;
 
-    // Edit file
-    // match &job {
-    //     Job::EncodeToSize(video, params) => {
-    //         // flows::encode_to_size::run(job).await
-    //     }
-    // }
-
     let attachment = message.attachments[0].clone();
 
-    let mut client = redis::Client::open("redis://192.168.0.58/").unwrap();
+    let client = config::get_redis_client();
     let mut con = client.get_async_connection().await.unwrap();
 
+    // Build job obj
     let video = Video::new(
         models::VideoURI::Url(attachment.url),
         Some(id.to_owned()),
@@ -148,15 +138,18 @@ pub async fn run(
     );
     let job = Job::new(models::JobKind::EncodeToSize, Some(video), params);
 
+    // Send job to redis queue
     job.send_job(&mut con).await.unwrap();
 
     let channel = format!("progress:{}", id);
 
+    // Subscribe to status queue
     let mut pubsub = client.get_connection()?;
     let mut pubsub = pubsub.as_pubsub();
 
     pubsub.subscribe(channel)?;
 
+    // Wait for done message
     loop {
         let message = pubsub.get_message()?;
         let payload: String = message.get_payload()?;
