@@ -1,3 +1,4 @@
+use s3::error::S3Error;
 use serde::{Deserialize, Serialize};
 use serenity::prelude::SerenityError;
 
@@ -16,21 +17,42 @@ pub enum VideoURI {
 pub struct Video {
     pub url: VideoURI,
     pub id: String,
+    pub filename: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum Job {
-    EncodeToSize(Option<Video>, EncodeToSizeParameters),
+pub enum JobKind {
+    EncodeToSize,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+
+pub enum EncodeParameters {
+    EncodeToSize(EncodeToSizeParameters)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Job {
+    pub kind: JobKind,
+    pub video: Option<Video>,
+    pub params: EncodeParameters,
+}
+
+impl Job {
+    pub fn new(kind: JobKind, video: Option<Video>, params: EncodeParameters) -> Self {
+        Job { kind, video, params }
+    }
 }
 
 impl Video {
-    pub fn new(uri: VideoURI, id: Option<String>) -> Video {
+    pub fn new(url: VideoURI, id: Option<String>, filename: String) -> Video {
         if let Some(str) = id {
-            return Video { url: uri, id: str };
+            return Video { url, id: str, filename };
         }
         Video {
-            url: uri,
+            url,
             id: "".to_owned(),
+            filename
         }
     }
 }
@@ -79,6 +101,8 @@ pub enum InteractionError {
     Timeout,
     Io(std::io::Error),
     InvalidInput(InvalidInputError),
+    Redis(redis::RedisError),
+    S3(S3Error),
 }
 
 impl From<SerenityError> for InteractionError {
@@ -96,6 +120,18 @@ impl From<std::io::Error> for InteractionError {
 impl From<std::num::ParseFloatError> for InteractionError {
     fn from(error: std::num::ParseFloatError) -> Self {
         InteractionError::InvalidInput(InvalidInputError::StringParse(error))
+    }
+}
+
+impl From<redis::RedisError> for InteractionError {
+    fn from(error: redis::RedisError) -> Self {
+        InteractionError::Redis(error)
+    }
+}
+
+impl From<S3Error> for InteractionError {
+    fn from(error: S3Error) -> Self {
+        InteractionError::S3(error)
     }
 }
 

@@ -10,9 +10,10 @@ use tokio::fs::{self, remove_dir_all, File};
 use tokio::io::AsyncWriteExt;
 
 use crate::flows;
-use models::{EditError, InteractionError};
+use models::{EditError, InteractionError, Video};
 
 use models::Job;
+use queue::Queue;
 
 pub async fn run(
     cmd: &ApplicationCommandInteraction,
@@ -27,6 +28,9 @@ pub async fn run(
         .next()
         .ok_or(InteractionError::Error)?
         .1;
+
+    let id = cmd.token.to_owned();
+    dbg!(&id);
 
     // Check if the message contains a valid number of attachments
     let number_of_files = message.attachments.len();
@@ -95,7 +99,7 @@ pub async fn run(
     let edit_kind = &cmd.data.values[0].to_owned();
 
     // Match edit kinds
-    let info = match edit_kind.as_str() {
+    let mut params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
         _ => {
             return Err(InteractionError::InvalidInput(
@@ -114,22 +118,6 @@ pub async fn run(
     })
     .await?;
 
-    // Await file download
-    let file = message.attachments[0].download().await?;
-
-    // Define working directory and destination filepath
-    let dir = Path::new("tmpfs").join(format!("{}", cmd.token));
-    let dir = std::env::current_dir()?.join(dir);
-    let dest_file = dir.join(&format!("edit-{}", message.attachments[0].filename));
-
-    // Creating working directory
-    fs::create_dir(&dir).await?;
-    let path = dir.join(&message.attachments[0].filename);
-
-    // Writing file to disk
-    let mut buffer = File::create(&path).await?;
-    buffer.write_all(&file).await?;
-
     // Notify file editing
     cmd.edit_original_interaction_response(&ctx.http, |response| {
         response
@@ -142,9 +130,40 @@ pub async fn run(
     .await?;
 
     // Edit file
-    match info {
-        Job::EncodeToSize(_, params) => {
-            flows::encode_to_size::run(&path, dest_file.to_str().unwrap_or_default(), params).await
+    // match &job {
+    //     Job::EncodeToSize(video, params) => {
+    //         // flows::encode_to_size::run(job).await
+    //     }
+    // }
+
+    let attachment = message.attachments[0].clone();
+
+    let mut client = redis::Client::open("redis://192.168.0.58/").unwrap();
+    let mut con = client.get_async_connection().await.unwrap();
+
+    let video = Video::new(
+        models::VideoURI::Url(attachment.url),
+        Some(id.to_owned()),
+        attachment.filename.to_owned(),
+    );
+    let job = Job::new(models::JobKind::EncodeToSize, Some(video), params);
+
+    job.send_job(&mut con).await.unwrap();
+
+    let channel = format!("progress:{}", id);
+
+    let mut pubsub = client.get_connection()?;
+    let mut pubsub = pubsub.as_pubsub();
+
+    pubsub.subscribe(channel)?;
+
+    loop {
+        let message = pubsub.get_message()?;
+        let payload: String = message.get_payload()?;
+        match payload.as_str() {
+            "starting" => println!("Starting conversion..."),
+            "done" => break,
+            _ => {}
         }
     }
 
@@ -159,29 +178,31 @@ pub async fn run(
     })
     .await?;
 
-    // Upload files (sends message)
-    let paths = vec![dest_file.to_str().unwrap_or_default()];
+    let bucket = config::get_s3_bucket();
+    let res_files = bucket.get_object(&id).await?;
 
     cmd.channel_id
-        .send_files(&ctx.http, paths, |m| {
-            m.content(format!("**{}**:", message.attachments[0].filename))
+        .send_message(&ctx.http, |m| {
+            m.content(format!("**{}**:", message.attachments[0].filename));
+            m.files(vec![(
+                res_files.bytes(),
+                attachment.filename.to_owned().as_str(),
+            )])
         })
         .await?;
 
-    // Delete working dir
-    remove_dir_all(dir).await?;
+    bucket.delete_object(id).await?;
 
     // Edit original interaction to notify sucess
-    cmd
-        .edit_original_interaction_response(&ctx.http, |response| {
-            response
-                .content(format!(
-                    "**{}** à été modifié avec success",
-                    message.attachments[0].filename
-                ))
-                .components(|comp| comp)
-        })
-        .await?;
+    cmd.edit_original_interaction_response(&ctx.http, |response| {
+        response
+            .content(format!(
+                "**{}** à été modifié avec success",
+                message.attachments[0].filename
+            ))
+            .components(|comp| comp)
+    })
+    .await?;
 
     Ok(())
 }
