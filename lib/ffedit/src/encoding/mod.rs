@@ -245,7 +245,9 @@ pub async fn encode_to_size_new(video: &Video, params: &EncodeToSizeParameters) 
             "-b:a",
             &format!("{}k", audio_rate),
             "-f",
-            "matroska",
+            "mp4",
+            "-movflags",
+            "frag_keyframe+empty_moov",
             "pipe:1",
         ]);
 

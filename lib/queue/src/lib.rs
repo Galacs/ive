@@ -1,5 +1,5 @@
 extern crate redis;
-use redis::AsyncCommands;
+use redis::{AsyncCommands, RedisError};
 
 use async_trait::async_trait;
 use models::queue::QueueError;
@@ -19,7 +19,14 @@ impl Queue for Job {
         Ok(conn.incr("nonce", 1).await?)
     }
     async fn receive_job(conn: &mut redis::aio::Connection) -> Result<Job, QueueError> {
-        let str: String = conn.rpop("queue", None).await?;
+        let str = loop {
+            let res: Result<String, RedisError> = conn.rpop("queue", None).await;
+            if let Ok(s) = res {
+                break s;
+            } else {
+                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            }
+        };
         conn.decr("nonce", 1).await?;
         Ok(serde_json::from_str(&str)?)
     }

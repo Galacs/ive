@@ -1,3 +1,4 @@
+use std::path::{PathBuf, Path};
 use std::time::Duration;
 
 use serenity::builder::CreateApplicationCommand;
@@ -160,6 +161,9 @@ pub async fn run(
         }
     }
 
+    let bucket = config::get_s3_bucket();
+    let res_files = bucket.get_object(&id).await?;
+    
     // Notify file upload
     cmd.edit_original_interaction_response(&ctx.http, |response| {
         response
@@ -171,15 +175,17 @@ pub async fn run(
     })
     .await?;
 
-    let bucket = config::get_s3_bucket();
-    let res_files = bucket.get_object(&id).await?;
+    let mut path = PathBuf::new();
+    path = path.join(Path::new(&attachment.filename));
+    path.set_extension("mp4");
+    let filename = path.to_str().ok_or(InteractionError::Error)?;
 
     cmd.channel_id
         .send_message(&ctx.http, |m| {
             m.content(format!("**{}**:", message.attachments[0].filename));
             m.files(vec![(
                 res_files.bytes(),
-                attachment.filename.to_owned().as_str(),
+                filename,
             )])
         })
         .await?;

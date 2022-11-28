@@ -11,4 +11,5 @@ models = { workspace = true }
 ffedit = { workspace = true }
 queue = { workspace = true }
 redis = { workspace = true }
-rust-s3 = "0.32"
+rust-s3 = { workspace = true }
+config = { workspace = true }
