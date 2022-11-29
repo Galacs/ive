@@ -4,9 +4,21 @@ use serenity::prelude::SerenityError;
 
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum EncodeToSizeError {
+    UnsupportedURI,
+    TargetSizeTooSmall,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum EncodeError {
+    EncodeToSize(EncodeToSizeError),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum JobProgress {
     Started,
     Progress(f32),
+    Error(EncodeError),
     Done,
 }
 

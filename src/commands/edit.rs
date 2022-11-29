@@ -8,7 +8,7 @@ use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
 use crate::flows;
-use models::{EditError, InteractionError, Video, JobProgress};
+use models::{EditError, InteractionError, Video, JobProgress, EncodeError};
 
 use models::Job;
 use queue::Queue;
@@ -156,7 +156,15 @@ pub async fn run(
         match progress {
             JobProgress::Started => println!("Starting conversion..."),
             JobProgress::Done => break,
-            _ => {}
+            JobProgress::Progress(_) => todo!(),
+            JobProgress::Error(err) => {
+                match err {
+                    EncodeError::EncodeToSize(err) => {
+                        println!("Erreur du worker: {:?}", err);
+                        return Err(InteractionError::Error)
+                    }
+                }
+            }
         }
     }
 

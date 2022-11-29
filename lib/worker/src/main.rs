@@ -57,7 +57,15 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
         EncodeParameters::EncodeToSize(p) => p,
     };
 
-    let _ = ffedit::encoding::encode_to_size(&video, params).await;
+    let res = ffedit::encoding::encode_to_size(&video, params).await;
+
+    match res {
+        Err(err) => {
+            let _: () = client.publish(&channel, serde_json::to_string(&JobProgress::Error(err))?)?;
+            return Err(ProcessError::Error)
+        },
+        Ok(_) => {},
+    }
 
     let dir = ffedit::encoding::get_working_dir(&video.id)?;
     tokio::fs::remove_dir_all(dir).await?;

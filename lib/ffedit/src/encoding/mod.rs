@@ -6,32 +6,19 @@ use models::*;
 use s3::creds::Credentials;
 use tokio::{io::{AsyncWriteExt, AsyncReadExt}, process::ChildStdout};
 
-#[derive(Debug)]
-pub struct EncodeToSizeError {
-    pub details: String,
-}
-
-impl EncodeToSizeError {
-    fn new(msg: &str) -> EncodeToSizeError {
-        EncodeToSizeError {
-            details: msg.to_string(),
-        }
-    }
-}
-
 pub fn get_working_dir(id: &String) -> Result<PathBuf, InteractionError> {
     let dir = Path::new("tmpfs/").join(format!("{}", id));
     let dir = std::env::current_dir()?.join(dir);
     Ok(dir)
 }
 
-pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> Result<(), EncodeToSizeError> {
+pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> Result<(), EncodeError> {
 
     use tokio::process::Command;
 
     let url = match &video.url {
         VideoURI::Url(p) => p,
-        _ => return Err(EncodeToSizeError {details: "only url is supported".to_owned()}),
+        _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI)),
     };
 
     ffmpeg::init().unwrap();
@@ -45,7 +32,7 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     let t_minsize = (audio_rate as f32 * duration) / 8192_f32;
     let size: f32 = params.target_size as f32 / 2_f32.powf(20.0);
     if t_minsize > size {
-        return Err(EncodeToSizeError::new("target size too small"));
+        return Err(EncodeError::EncodeToSize(EncodeToSizeError::TargetSizeTooSmall));
     }
 
     let target_vrate = (size * 8192.0) / (1.048576 * duration) - audio_rate as f32;
@@ -108,6 +95,5 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     
     let status = child.wait().await.unwrap();
     
-    Err(EncodeToSizeError::new("target size too small"))
-        
+    Ok(())
 }
