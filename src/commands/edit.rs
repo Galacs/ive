@@ -2,6 +2,7 @@ use std::path::{PathBuf, Path};
 use std::time::Duration;
 
 use serenity::builder::CreateApplicationCommand;
+use serenity::futures::StreamExt;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
@@ -145,15 +146,16 @@ pub async fn run(
     let channel = format!("progress:{}", id);
 
     // Subscribe to status queue
-    let mut pubsub = client.get_connection()?;
-    let mut pubsub = pubsub.as_pubsub();
+    let mut pubsub = con.into_pubsub();
 
-    pubsub.subscribe(channel)?;
+    pubsub.subscribe(&channel).await?;
 
     // Wait for done message
     loop {
-        let message = pubsub.get_message()?;
-        let payload: String = message.get_payload()?;
+        let mut pubsub = client.get_async_connection().await?.into_pubsub();
+        pubsub.subscribe(&channel).await?;
+        let mut message = pubsub.into_on_message();
+        let payload: String = message.next().await.unwrap().get_payload()?;
         match payload.as_str() {
             "starting" => println!("Starting conversion..."),
             "done" => break,
