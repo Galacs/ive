@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use queue::Queue;
-use models::{Job, EncodeParameters};
+use models::{Job, EncodeParameters, JobProgress};
 use redis::Commands;
 use tokio::fs;
 
@@ -25,7 +25,8 @@ async fn main() {
 
         let channel = format!("progress:{}", video.id);
 
-        let _ : () = client.publish(&channel, "starting").unwrap();
+        let str = serde_json::to_string(&JobProgress::Started).unwrap();
+        let _ : () = client.publish(&channel, str).unwrap();
 
         let params = match &a.params {
             EncodeParameters::EncodeToSize(p) => p,
@@ -36,7 +37,8 @@ async fn main() {
         let dir = ffedit::encoding::get_working_dir(&video.id).unwrap();
         tokio::fs::remove_dir_all(dir).await.unwrap();
 
-        let _ : () = client.publish(&channel, "done").unwrap();
+        let str = serde_json::to_string(&JobProgress::Done).unwrap();
+        let _ : () = client.publish(&channel, str).unwrap();
     }
 
 }

@@ -2,6 +2,14 @@ use s3::error::S3Error;
 use serde::{Deserialize, Serialize};
 use serenity::prelude::SerenityError;
 
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum JobProgress {
+    Started,
+    Progress(f32),
+    Done,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EncodeToSizeParameters {
     pub target_size: u32,
@@ -73,8 +81,8 @@ pub mod queue {
     }
 
     impl From<serde_json::Error> for QueueError {
-        fn from(errror: serde_json::Error) -> Self {
-            QueueError::Serde(errror)
+        fn from(error: serde_json::Error) -> Self {
+            QueueError::Serde(error)
         }
     }
 }
@@ -103,6 +111,7 @@ pub enum InteractionError {
     InvalidInput(InvalidInputError),
     Redis(redis::RedisError),
     S3(S3Error),
+    Serde(serde_json::Error),
 }
 
 impl From<SerenityError> for InteractionError {
@@ -132,6 +141,12 @@ impl From<redis::RedisError> for InteractionError {
 impl From<S3Error> for InteractionError {
     fn from(error: S3Error) -> Self {
         InteractionError::S3(error)
+    }
+}
+
+impl From<serde_json::Error> for InteractionError {
+    fn from(error: serde_json::Error) -> Self {
+        InteractionError::Serde(error)
     }
 }
 

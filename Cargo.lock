@@ -658,6 +658,7 @@ dependencies = [
  "models",
  "queue",
  "redis",
+ "serde_json",
  "serenity",
  "tokio",
 ]
@@ -2021,6 +2022,7 @@ dependencies = [
  "queue",
  "redis",
  "rust-s3",
+ "serde_json",
  "tokio",
 ]
 
