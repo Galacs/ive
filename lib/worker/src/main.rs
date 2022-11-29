@@ -57,7 +57,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
         EncodeParameters::EncodeToSize(p) => p,
     };
 
-    let _ = ffedit::encoding::encode_to_size_new(&video, params).await;
+    let _ = ffedit::encoding::encode_to_size(&video, params).await;
 
     let dir = ffedit::encoding::get_working_dir(&video.id)?;
     tokio::fs::remove_dir_all(dir).await?;
