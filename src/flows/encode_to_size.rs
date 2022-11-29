@@ -1,4 +1,4 @@
-use std::{path::Path, time::Duration};
+use std::time::Duration;
 
 use serenity::{
     model::prelude::{
@@ -9,8 +9,7 @@ use serenity::{
     prelude::Context,
 };
 
-use models::{EncodeToSizeParameters, InteractionError, Job, Video, VideoURI, EncodeParameters};
-use queue::Queue;
+use models::{EncodeParameters, EncodeToSizeParameters, InteractionError};
 
 pub async fn get_info(
     cmd: &MessageComponentInteraction,
@@ -75,18 +74,4 @@ pub async fn get_info(
     Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
         target_size: (t_size * 2_f32.powf(20.0)) as u32,
     }))
-}
-
-pub async fn run(job: Job) -> Result<(), InteractionError> {
-    // job.send_job(conn)
-
-    // // match &job {
-    // //     Job::EncodeToSize(video, params) => {
-
-    // //     },
-    // //     _ => {
-    // //         return Err(InteractionError::NotImplemented);
-    // //     }
-    // // }
-    Ok(())
 }
