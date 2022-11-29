@@ -120,10 +120,6 @@ pub mod encoding;
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
-    use super::*;
-
     #[test]
     fn it_works() {
         // let _ = encoding::encode_to_size(Path::new("in.mp4"), 8.0, "out.mp4");

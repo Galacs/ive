@@ -1,18 +1,17 @@
-use std::path::Path;
+use std::path::{PathBuf, Path};
 use std::time::Duration;
 
 use serenity::builder::CreateApplicationCommand;
+use serenity::futures::StreamExt;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
-use tokio::fs::{self, remove_dir_all, File};
-use tokio::io::AsyncWriteExt;
-
 use crate::flows;
-use models::{EditError, InteractionError};
+use models::{EditError, InteractionError, Video, JobProgress, EncodeError};
 
 use models::Job;
+use queue::Queue;
 
 pub async fn run(
     cmd: &ApplicationCommandInteraction,
@@ -27,6 +26,9 @@ pub async fn run(
         .next()
         .ok_or(InteractionError::Error)?
         .1;
+
+    let id = cmd.token.to_owned();
+    dbg!(&id);
 
     // Check if the message contains a valid number of attachments
     let number_of_files = message.attachments.len();
@@ -95,7 +97,7 @@ pub async fn run(
     let edit_kind = &cmd.data.values[0].to_owned();
 
     // Match edit kinds
-    let info = match edit_kind.as_str() {
+    let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
         _ => {
             return Err(InteractionError::InvalidInput(
@@ -114,22 +116,6 @@ pub async fn run(
     })
     .await?;
 
-    // Await file download
-    let file = message.attachments[0].download().await?;
-
-    // Define working directory and destination filepath
-    let dir = Path::new("tmpfs").join(format!("{}", cmd.token));
-    let dir = std::env::current_dir()?.join(dir);
-    let dest_file = dir.join(&format!("edit-{}", message.attachments[0].filename));
-
-    // Creating working directory
-    fs::create_dir(&dir).await?;
-    let path = dir.join(&message.attachments[0].filename);
-
-    // Writing file to disk
-    let mut buffer = File::create(&path).await?;
-    buffer.write_all(&file).await?;
-
     // Notify file editing
     cmd.edit_original_interaction_response(&ctx.http, |response| {
         response
@@ -141,13 +127,50 @@ pub async fn run(
     })
     .await?;
 
-    // Edit file
-    match info {
-        Job::EncodeToSize(_, params) => {
-            flows::encode_to_size::run(&path, dest_file.to_str().unwrap_or_default(), params).await
+    let attachment = message.attachments[0].clone();
+
+    let client = config::get_redis_client();
+    let mut con = client.get_async_connection().await?;
+
+    // Build job obj
+    let video = Video::new(
+        models::VideoURI::Url(attachment.url),
+        Some(id.to_owned()),
+        attachment.filename.to_owned(),
+    );
+    let job = Job::new(models::JobKind::EncodeToSize, Some(video), params);
+
+    // Send job to redis queue
+    job.send_job(&mut con).await?;
+
+    // Subscribe to status queue
+    let mut pubsub = client.get_async_connection().await?.into_pubsub();
+    let channel = format!("progress:{}", id);
+    pubsub.subscribe(&channel).await?;
+    let mut msg_stream = pubsub.into_on_message();
+
+    // Wait for done message
+    loop {
+        let payload: String = msg_stream.next().await.ok_or(InteractionError::Error)?.get_payload()?;
+        let progress: JobProgress = serde_json::from_str(&payload.as_str())?;
+        match progress {
+            JobProgress::Started => println!("Starting conversion..."),
+            JobProgress::Done => break,
+            JobProgress::Progress(_) => todo!(),
+            JobProgress::Error(err) => {
+                match err {
+                    EncodeError::EncodeToSize(err) => {
+                        println!("Erreur du worker: {:?}", err);
+                        return Err(InteractionError::Error)
+                    }
+                }
+            }
         }
     }
 
+    let bucket = config::get_s3_bucket();
+    let res_files = bucket.get_object(&id).await?;
+    
     // Notify file upload
     cmd.edit_original_interaction_response(&ctx.http, |response| {
         response
@@ -159,29 +182,33 @@ pub async fn run(
     })
     .await?;
 
-    // Upload files (sends message)
-    let paths = vec![dest_file.to_str().unwrap_or_default()];
+    let mut path = PathBuf::new();
+    path = path.join(Path::new(&attachment.filename));
+    path.set_extension("mp4");
+    let filename = path.to_str().ok_or(InteractionError::Error)?;
 
     cmd.channel_id
-        .send_files(&ctx.http, paths, |m| {
-            m.content(format!("**{}**:", message.attachments[0].filename))
+        .send_message(&ctx.http, |m| {
+            m.content(format!("**{}**:", message.attachments[0].filename));
+            m.files(vec![(
+                res_files.bytes(),
+                filename,
+            )])
         })
         .await?;
 
-    // Delete working dir
-    remove_dir_all(dir).await?;
+    bucket.delete_object(id).await?;
 
     // Edit original interaction to notify sucess
-    cmd
-        .edit_original_interaction_response(&ctx.http, |response| {
-            response
-                .content(format!(
-                    "**{}** à été modifié avec success",
-                    message.attachments[0].filename
-                ))
-                .components(|comp| comp)
-        })
-        .await?;
+    cmd.edit_original_interaction_response(&ctx.http, |response| {
+        response
+            .content(format!(
+                "**{}** à été modifié avec success",
+                message.attachments[0].filename
+            ))
+            .components(|comp| comp)
+    })
+    .await?;
 
     Ok(())
 }
