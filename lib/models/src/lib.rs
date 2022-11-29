@@ -150,6 +150,12 @@ impl From<serde_json::Error> for InteractionError {
     }
 }
 
+impl From<queue::QueueError> for InteractionError {
+    fn from(error: queue::QueueError) -> Self {
+        InteractionError::Queue(error)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]

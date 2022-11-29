@@ -130,7 +130,7 @@ pub async fn run(
     let attachment = message.attachments[0].clone();
 
     let client = config::get_redis_client();
-    let mut con = client.get_async_connection().await.unwrap();
+    let mut con = client.get_async_connection().await?;
 
     // Build job obj
     let video = Video::new(
@@ -141,18 +141,17 @@ pub async fn run(
     let job = Job::new(models::JobKind::EncodeToSize, Some(video), params);
 
     // Send job to redis queue
-    job.send_job(&mut con).await.unwrap();
+    job.send_job(&mut con).await?;
 
-    let mut pubsub = client.get_async_connection().await?.into_pubsub();
-    
     // Subscribe to status queue
+    let mut pubsub = client.get_async_connection().await?.into_pubsub();
     let channel = format!("progress:{}", id);
     pubsub.subscribe(&channel).await?;
     let mut msg_stream = pubsub.into_on_message();
 
     // Wait for done message
     loop {
-        let payload: String = msg_stream.next().await.unwrap().get_payload()?;
+        let payload: String = msg_stream.next().await.ok_or(InteractionError::Error)?.get_payload()?;
         let progress: JobProgress = serde_json::from_str(&payload.as_str())?;
         match progress {
             JobProgress::Started => println!("Starting conversion..."),
