@@ -23,8 +23,6 @@ impl Queue for Job {
             let res: Result<String, RedisError> = conn.rpop("queue", None).await;
             if let Ok(s) = res {
                 break s;
-            } else {
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             }
         };
         conn.decr("nonce", 1).await?;
