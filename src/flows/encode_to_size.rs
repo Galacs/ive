@@ -11,6 +11,8 @@ use serenity::{
 
 use models::{EncodeParameters, EncodeToSizeParameters, InteractionError};
 
+use crate::commands::edit::edit_interaction;
+
 pub async fn get_info(
     cmd: &MessageComponentInteraction,
     ctx: &Context,
@@ -34,7 +36,8 @@ pub async fn get_info(
                                     original_msg.attachments[0].size as f64 / 2_i32.pow(20) as f64
                                 ));
                                 menu.style(InputTextStyle::Short);
-                                menu.label("Taille")
+                                menu.label("Taille");
+                                menu.max_length(10)
                             })
                         })
                     })
@@ -64,14 +67,22 @@ pub async fn get_info(
     // Extract target size from modal response
     let input: &ActionRowComponent = &interaction.data.components[0].components[0];
     let t_size = match input {
-        ActionRowComponent::InputText(txt) => txt.value.parse::<f32>()?,
-        _ => 0.0,
+        ActionRowComponent::InputText(txt) => txt.value.parse::<f32>(),
+        _ => Ok(0.0),
     };
+
     // Ack modal interaction
     interaction.defer(&ctx.http).await?;
 
-    // Return target size
-    Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
-        target_size: (t_size * 2_f32.powf(20.0)) as u32,
-    }))
+    match t_size {
+        Err(err) => {
+            edit_interaction(&cmd, &ctx, "Veuillez donner un nombre").await?;
+            return Err(InteractionError::InvalidInput(models::InvalidInputError::StringParse(err)))
+        },
+        Ok(t) => {
+            return Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
+                target_size: (t * 2_f32.powf(20.0)) as u32,
+            }));
+        }
+    }
 }

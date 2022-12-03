@@ -1,17 +1,30 @@
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serenity::builder::CreateApplicationCommand;
 use serenity::futures::StreamExt;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::interaction::InteractionResponseType;
+use serenity::model::prelude::interaction::message_component::MessageComponentInteraction;
 use serenity::prelude::Context;
 
 use crate::flows;
-use models::{EditError, InteractionError, Video, JobProgress, EncodeError};
+use models::{EditError, EncodeError, InteractionError, JobProgress, Video};
 
 use models::Job;
 use queue::Queue;
+
+pub async fn edit_interaction(
+    cmd: &MessageComponentInteraction,
+    ctx: &Context,
+    message: &str,
+) -> Result<(), InteractionError> {
+    cmd.edit_original_interaction_response(&ctx.http, |r| {
+        r.content(message).components(|comp| comp)
+    })
+    .await?;
+    Ok(())
+}
 
 pub async fn run(
     cmd: &ApplicationCommandInteraction,
@@ -99,15 +112,25 @@ pub async fn run(
     // Match edit kinds
     let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
-        _ => {
-            return Err(InteractionError::InvalidInput(
-                models::InvalidInputError::Error,
-            ))
-        }
+        _ => return Err(InteractionError::InvalidInput(
+            models::InvalidInputError::Error,
+        )),
     };
 
+    // let error_message;
+    // let params = match params {
+    //     Err(err) => {
+    //         error_message = match err {
+    //             _ => "salut",
+    //         };
+    //         edit_interaction(&cmd, &ctx, error_message).await?;
+    //         return Err(err);
+    //     }
+    //     Ok(p) => p,
+    // };
+
     // Notify file download
-    cmd.edit_original_interaction_response(&ctx, |r| {
+    cmd.edit_original_interaction_response(&ctx.http, |r| {
         r.content(format!(
             "Telechargement de **{}**...",
             message.attachments[0].filename
@@ -151,26 +174,28 @@ pub async fn run(
 
     // Wait for done message
     loop {
-        let payload: String = msg_stream.next().await.ok_or(InteractionError::Error)?.get_payload()?;
+        let payload: String = msg_stream
+            .next()
+            .await
+            .ok_or(InteractionError::Error)?
+            .get_payload()?;
         let progress: JobProgress = serde_json::from_str(&payload.as_str())?;
         match progress {
             JobProgress::Started => println!("Starting conversion..."),
             JobProgress::Done => break,
             JobProgress::Progress(_) => todo!(),
-            JobProgress::Error(err) => {
-                match err {
-                    EncodeError::EncodeToSize(err) => {
-                        println!("Erreur du worker: {:?}", err);
-                        return Err(InteractionError::Error)
-                    }
+            JobProgress::Error(err) => match err {
+                EncodeError::EncodeToSize(err) => {
+                    println!("Erreur du worker: {:?}", err);
+                    return Err(InteractionError::Error);
                 }
-            }
+            },
         }
     }
 
     let bucket = config::get_s3_bucket();
     let res_files = bucket.get_object(&id).await?;
-    
+
     // Notify file upload
     cmd.edit_original_interaction_response(&ctx.http, |response| {
         response
@@ -190,10 +215,7 @@ pub async fn run(
     cmd.channel_id
         .send_message(&ctx.http, |m| {
             m.content(format!("**{}**:", message.attachments[0].filename));
-            m.files(vec![(
-                res_files.bytes(),
-                filename,
-            )])
+            m.files(vec![(res_files.bytes(), filename)])
         })
         .await?;
 
