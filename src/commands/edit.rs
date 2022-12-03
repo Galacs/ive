@@ -4,8 +4,8 @@ use std::time::Duration;
 use serenity::builder::CreateApplicationCommand;
 use serenity::futures::StreamExt;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
-use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::model::prelude::interaction::message_component::MessageComponentInteraction;
+use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
 use crate::flows;
@@ -112,9 +112,11 @@ pub async fn run(
     // Match edit kinds
     let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
-        _ => return Err(InteractionError::InvalidInput(
-            models::InvalidInputError::Error,
-        )),
+        _ => {
+            return Err(InteractionError::InvalidInput(
+                models::InvalidInputError::Error,
+            ))
+        }
     };
 
     // let error_message;
@@ -139,11 +141,11 @@ pub async fn run(
     })
     .await?;
 
-    // Notify file editing
+    // Notify file queuing
     cmd.edit_original_interaction_response(&ctx.http, |response| {
         response
             .content(format!(
-                "Modification de **{}**...",
+                "**{}** à été mit dans la file d'attente",
                 message.attachments[0].filename
             ))
             .components(|comp| comp)
@@ -181,7 +183,19 @@ pub async fn run(
             .get_payload()?;
         let progress: JobProgress = serde_json::from_str(&payload.as_str())?;
         match progress {
-            JobProgress::Started => println!("Starting conversion..."),
+            JobProgress::Started => {
+                println!("Starting conversion...");
+                // Notify file queuing
+                cmd.edit_original_interaction_response(&ctx.http, |response| {
+                    response
+                        .content(format!(
+                            "Modification de **{}**...",
+                            message.attachments[0].filename
+                        ))
+                        .components(|comp| comp)
+                })
+                .await?;
+            }
             JobProgress::Done => break,
             JobProgress::Progress(_) => todo!(),
             JobProgress::Error(err) => match err {

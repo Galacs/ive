@@ -28,6 +28,12 @@ impl EventHandler for Handler {
                 _ => Err(InteractionError::NotImplemented),
             };
             if let Err(why) = result {
+                let _ = command.edit_original_interaction_response(&ctx.http, |response| {
+                    response
+                        .content("Erreur de traitement.")
+                        .components(|comp| comp)
+                })
+                .await;
                 println!("{:?}", why);
             }
         }
