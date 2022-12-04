@@ -1,10 +1,81 @@
+use std::process::Stdio;
+
+use models::*;
+
 extern crate ffmpeg_next as ffmpeg;
 
 extern crate models;
 
-pub mod utils;
 pub mod encoding;
+pub mod utils;
 
+use ffmpeg_cli::{FfmpegBuilder, File, Parameter};
+use tokio::process::{ChildStdout, Command};
+
+pub async fn run_ffmpeg_upload(video: &Video, bf_input_args: Vec<String>, args: Vec<String>) {
+    let uri = &video.url;
+
+    let url = match uri {
+        VideoURI::Path(p) => p,
+        VideoURI::Url(u) => u,
+    };
+
+    let mut a = ["-y"].map(String::from).to_vec();
+    a.extend(bf_input_args);
+    a.extend(["-i".to_owned(), url.to_string()]);
+    a.extend(args);
+    a.extend([
+        "-f",
+        "mp4",
+        "-movflags",
+        "frag_keyframe+empty_moov",
+        "pipe:1",
+    ].map(String::from).to_vec());
+
+    let mut cmd = Command::new("ffmpeg");
+    cmd.args(a);
+
+    cmd.stdout(std::process::Stdio::piped());
+    let mut child = cmd.spawn().expect("failed to spawn command");
+    let mut stdout = child
+        .stdout
+        .take()
+        .expect("child did not have a handle to stdout");
+
+    let bucket = config::get_s3_bucket();
+    let res = bucket
+        .put_object_stream(&mut stdout, &video.id)
+        .await
+        .unwrap();
+}
+
+pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), EncodeError> {
+    let mut args: Vec<String> = Vec::new();
+
+    let mut bf: Vec<String> = Vec::new();
+
+    match &params.start {
+        Some(time) => {
+            let str = time.to_string();
+            bf.extend(vec!["-ss".to_owned(), str]);
+        }
+        None => (),
+    };
+
+    match &params.end {
+        Some(time) => {
+            let str = time.to_string();
+            bf.extend(vec!["-to".to_owned(), str]);
+        }
+        None => (),
+    };
+
+    let vec = ["-c:a", "copy", "-c:v", "copy"];
+    args.extend(vec.map(String::from).to_vec());
+
+    run_ffmpeg_upload(&video, bf, args).await;
+    Ok(())
+}
 
 // Code without using lib
 
@@ -120,9 +191,19 @@ pub mod encoding;
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        // let _ = encoding::encode_to_size(Path::new("in.mp4"), 8.0, "out.mp4");
+    use super::*;
+
+    #[tokio::test]
+    async fn it_works() {
+        let uri = VideoURI::Url("https://cdn.discordapp.com/attachments/685197521953488994/1048621810708648047/clip-00.18.52.873-00.19.07.444-8MB.mp4".to_owned());
+
+        let video = Video::new(
+            uri,
+            Some("dfkgjsdpfmkgj.mp4".to_owned()),
+            "toz123".to_owned(),
+        );
+
+        cut(&video, &CutParameters { start: Some(2), end: None, }).await.unwrap();
         assert_ne!(0, 0);
     }
 }

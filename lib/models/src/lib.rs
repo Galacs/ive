@@ -4,7 +4,8 @@ use serenity::prelude::SerenityError;
 
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum EncodeToSizeError {
+pub enum 
+EncodeToSizeError {
     UnsupportedURI,
     TargetSizeTooSmall,
 }
@@ -25,6 +26,12 @@ pub enum JobProgress {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct EncodeToSizeParameters {
     pub target_size: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CutParameters {
+    pub start: Option<u32>,
+    pub end: Option<u32>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
