@@ -77,12 +77,12 @@ pub async fn get_info(
     match t_size {
         Err(err) => {
             edit_interaction(&cmd, &ctx, "Veuillez donner un nombre").await?;
-            return Err(InteractionError::InvalidInput(models::InvalidInputError::StringParse(err)))
+            Err(InteractionError::InvalidInput(models::InvalidInputError::StringParse(err)))
         },
         Ok(t) => {
-            return Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
+            Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
                 target_size: (t * 2_f32.powf(20.0)) as u32,
-            }));
+            }))
         }
     }
 }
