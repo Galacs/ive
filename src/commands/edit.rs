@@ -14,12 +14,12 @@ use models::{EditError, EncodeError, InteractionError, JobProgress, Video};
 use models::Job;
 use queue::Queue;
 
-pub async fn edit_interaction(
+pub async fn edit_interaction_message(
     cmd: &MessageComponentInteraction,
-    ctx: &Context,
+    http: impl AsRef<serenity::http::Http>,
     message: &str,
 ) -> Result<(), InteractionError> {
-    cmd.edit_original_interaction_response(&ctx.http, |r| {
+    cmd.edit_original_interaction_response(http.as_ref(), |r| {
         r.content(message).components(|comp| comp)
     })
     .await?;
@@ -96,11 +96,7 @@ pub async fn run(
     {
         Some(x) => x,
         None => {
-            cmd.edit_original_interaction_response(&ctx.http, |response| {
-                response
-                    .content("T trop lent, j'ai pas ton temps")
-                    .components(|comp| comp)
-            })
+            edit_interaction_message(&cmd, &ctx.http, "T trop lent, j'ai pas ton temps")
             .await?;
             return Err(InteractionError::Timeout);
         }

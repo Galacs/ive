@@ -11,7 +11,7 @@ use serenity::{
 
 use models::{EncodeParameters, EncodeToSizeParameters, InteractionError};
 
-use crate::commands::edit::edit_interaction;
+use crate::commands::edit::edit_interaction_message;
 
 pub async fn get_info(
     cmd: &MessageComponentInteraction,
@@ -55,12 +55,7 @@ pub async fn get_info(
     {
         Some(x) => x,
         None => {
-            cmd.edit_original_interaction_response(&ctx.http, |response| {
-                response
-                    .content("T trop lent, j'ai pas ton temps")
-                    .components(|comp| comp)
-            })
-            .await?;
+            edit_interaction_message(&cmd, &ctx, "T trop lent, j'ai pas ton temps").await?;
             return Err(InteractionError::Timeout);
         }
     };
@@ -76,7 +71,7 @@ pub async fn get_info(
 
     match t_size {
         Err(err) => {
-            edit_interaction(&cmd, &ctx, "Veuillez donner un nombre").await?;
+            edit_interaction_message(&cmd, &ctx, "Veuillez donner un nombre").await?;
             Err(InteractionError::InvalidInput(models::InvalidInputError::StringParse(err)))
         },
         Ok(t) => {
