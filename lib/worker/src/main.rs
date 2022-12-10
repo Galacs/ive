@@ -53,11 +53,10 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     let str = serde_json::to_string(&JobProgress::Started)?;
     let _: () = client.publish(&channel, str)?;
 
-    let params = match &job.params {
-        EncodeParameters::EncodeToSize(p) => p,
+    let res = match &job.params {
+        EncodeParameters::EncodeToSize(p) => ffedit::encoding::encode_to_size(&video, p).await,
+        EncodeParameters::Cut(p) => ffedit::cut(&video, p).await,
     };
-
-    let res = ffedit::encoding::encode_to_size(&video, params).await;
 
     match res {
         Err(err) => {

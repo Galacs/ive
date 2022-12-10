@@ -55,7 +55,8 @@ pub enum JobKind {
 #[derive(Serialize, Deserialize, Debug)]
 
 pub enum EncodeParameters {
-    EncodeToSize(EncodeToSizeParameters)
+    EncodeToSize(EncodeToSizeParameters),
+    Cut(CutParameters),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

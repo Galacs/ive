@@ -9,7 +9,6 @@ extern crate models;
 pub mod encoding;
 pub mod utils;
 
-use ffmpeg_cli::{FfmpegBuilder, File, Parameter};
 use tokio::process::{ChildStdout, Command};
 
 pub async fn run_ffmpeg_upload(video: &Video, bf_input_args: Vec<String>, args: Vec<String>) {

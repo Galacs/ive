@@ -94,6 +94,10 @@ pub async fn run(
                                 f.create_option(|o| {
                                     o.label("Changer la taille du fichier")
                                         .value("encode_to_size")
+                                });
+                                f.create_option(|o| {
+                                    o.label("Couper la video")
+                                        .value("cut")
                                 })
                             })
                         })
@@ -120,6 +124,7 @@ pub async fn run(
     // Match edit kinds
     let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
+        "cut" => flows::cut::get_info(&cmd, &ctx, message).await?,
         _ => {
             return Err(InteractionError::InvalidInput(
                 models::InvalidInputError::Error,
