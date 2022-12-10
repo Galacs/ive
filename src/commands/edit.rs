@@ -16,7 +16,7 @@ use models::Job;
 use queue::Queue;
 
 #[async_trait]
-trait EditMessage {
+pub trait EditMessage {
     async fn edit(&self, http: &serenity::http::Http, message: &str) -> Result<(), InteractionError>;
 }
 
@@ -106,16 +106,12 @@ pub async fn run(
     let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
 
     // Await edit apply choice (with timeout)
-    let cmd = match interaction_reponse
+    let Some(cmd) = interaction_reponse
         .await_component_interaction(&ctx)
         .timeout(Duration::from_secs(60 * 3))
-        .await
-    {
-        Some(x) => x,
-        None => {
-            cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
-            return Err(InteractionError::Timeout);
-        }
+        .await else {
+        cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
+        return Err(InteractionError::Timeout);
     };
 
     // Get edit kind from awaited interaction
