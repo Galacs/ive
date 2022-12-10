@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use serenity::async_trait;
 use serenity::builder::CreateApplicationCommand;
 use serenity::futures::StreamExt;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
@@ -14,17 +15,33 @@ use models::{EditError, EncodeError, InteractionError, JobProgress, Video};
 use models::Job;
 use queue::Queue;
 
-pub async fn edit_interaction_message(
-    cmd: &MessageComponentInteraction,
-    http: impl AsRef<serenity::http::Http>,
-    message: &str,
-) -> Result<(), InteractionError> {
-    cmd.edit_original_interaction_response(http.as_ref(), |r| {
-        r.content(message).components(|comp| comp)
-    })
-    .await?;
-    Ok(())
+#[async_trait]
+trait EditMessage {
+    async fn edit(&self, http: &serenity::http::Http, message: &str) -> Result<(), InteractionError>;
 }
+
+#[async_trait]
+impl EditMessage for MessageComponentInteraction {
+    async fn edit(&self, http: &serenity::http::Http, message: &str) -> Result<(), InteractionError> {
+        self.edit_original_interaction_response(http.as_ref(), |r| {
+            r.content(message).components(|comp| comp)
+        })
+        .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl EditMessage for ApplicationCommandInteraction {
+    async fn edit(&self, http: &serenity::http::Http, message: &str) -> Result<(), InteractionError> {
+        self.edit_original_interaction_response(http.as_ref(), |r| {
+            r.content(message).components(|comp| comp)
+        })
+        .await?;
+        Ok(())
+    }
+}
+
 
 pub async fn run(
     cmd: &ApplicationCommandInteraction,
@@ -96,8 +113,7 @@ pub async fn run(
     {
         Some(x) => x,
         None => {
-            edit_interaction_message(&cmd, &ctx.http, "T trop lent, j'ai pas ton temps")
-            .await?;
+            cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
             return Err(InteractionError::Timeout);
         }
     };
@@ -128,25 +144,10 @@ pub async fn run(
     // };
 
     // Notify file download
-    cmd.edit_original_interaction_response(&ctx.http, |r| {
-        r.content(format!(
-            "Telechargement de **{}**...",
-            message.attachments[0].filename
-        ))
-        .components(|comp| comp)
-    })
-    .await?;
+    cmd.edit(&ctx.http, &format!("Telechargement de **{}**...",  message.attachments[0].filename)).await?;
 
     // Notify file queuing
-    cmd.edit_original_interaction_response(&ctx.http, |response| {
-        response
-            .content(format!(
-                "**{}** à été mit dans la file d'attente",
-                message.attachments[0].filename
-            ))
-            .components(|comp| comp)
-    })
-    .await?;
+    cmd.edit(&ctx.http, &format!("**{}** à été mit dans la file d'attente", message.attachments[0].filename)).await?;
 
     let attachment = message.attachments[0].clone();
 
@@ -182,15 +183,7 @@ pub async fn run(
             JobProgress::Started => {
                 println!("Starting conversion...");
                 // Notify file queuing
-                cmd.edit_original_interaction_response(&ctx.http, |response| {
-                    response
-                        .content(format!(
-                            "Modification de **{}**...",
-                            message.attachments[0].filename
-                        ))
-                        .components(|comp| comp)
-                })
-                .await?;
+                cmd.edit(&ctx.http, &format!("Modification de **{}**...", message.attachments[0].filename)).await?;
             }
             JobProgress::Done => break,
             JobProgress::Progress(_) => todo!(),
@@ -207,15 +200,7 @@ pub async fn run(
     let res_files = bucket.get_object(&id).await?;
 
     // Notify file upload
-    cmd.edit_original_interaction_response(&ctx.http, |response| {
-        response
-            .content(format!(
-                "Envoi de **{}** modifié...",
-                message.attachments[0].filename
-            ))
-            .components(|comp| comp)
-    })
-    .await?;
+    cmd.edit(&ctx.http, &format!("Envoi de **{}** modifié...", message.attachments[0].filename)).await?;
 
     let mut path = PathBuf::new();
     path = path.join(Path::new(&attachment.filename));
@@ -232,15 +217,7 @@ pub async fn run(
     bucket.delete_object(id).await?;
 
     // Edit original interaction to notify sucess
-    cmd.edit_original_interaction_response(&ctx.http, |response| {
-        response
-            .content(format!(
-                "**{}** à été modifié avec success",
-                message.attachments[0].filename
-            ))
-            .components(|comp| comp)
-    })
-    .await?;
+    cmd.edit(&ctx.http, &format!("**{}** à été modifié avec success", message.attachments[0].filename)).await?;
 
     Ok(())
 }
