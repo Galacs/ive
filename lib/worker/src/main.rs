@@ -80,6 +80,13 @@ async fn main() {
     let mut client = config::get_redis_client();
     let mut con = client.get_async_connection().await.unwrap();
 
+    // Create tmp folder
+    if !Path::new("tmpfs").exists() {
+        if let Err(why) = fs::create_dir("tmpfs").await {
+            panic!("Can't create tmp dir: {}", why);
+        }
+    }
+
     loop {
         let job = Job::receive_job(&mut con).await;
         let job = match job {

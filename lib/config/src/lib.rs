@@ -12,7 +12,7 @@ pub fn get_s3_bucket() -> Bucket {
         "ive",
         Region::Custom {
             region: "my-store".to_owned(),
-            endpoint: "http://127.0.0.1:9000".to_owned(),
+            endpoint: "http://minio:9000".to_owned(),
         },
         creds,
     )
@@ -23,5 +23,5 @@ pub fn get_s3_bucket() -> Bucket {
 }
 
 pub fn get_redis_client() -> redis::Client {
-    redis::Client::open("redis://192.168.0.58/").unwrap()
+    redis::Client::open("redis://redis/").unwrap()
 }

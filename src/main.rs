@@ -73,13 +73,6 @@ async fn main() {
     // Configure the client with your Discord bot token in the environment.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
 
-    // Create tmp folder
-    if !Path::new("tmpfs").exists() {
-        if let Err(why) = create_dir("tmpfs").await {
-            panic!("Can't create tmp dir: {}", why);
-        }
-    }
-
     // Build our client.
     let mut client = Client::builder(token, GatewayIntents::empty())
         .event_handler(Handler)

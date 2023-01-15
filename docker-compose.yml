@@ -1,0 +1,19 @@
+services:
+  ive:
+    image: docker.ait-younes.fr/ive/ive
+    env_file:
+      - .env
+  worker:
+    image: docker.ait-younes.fr/ive/worker
+  redis:
+    image: "redis"
+    command: redis-server --protected-mode no --bind 0.0.0.0
+  minio:
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    image: quay.io/minio/minio:latest
+    ports:
+      - '9000:9000'
+      - '9001:9001'
