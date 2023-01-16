@@ -98,6 +98,10 @@ pub async fn run(
                                 f.create_option(|o| {
                                     o.label("Couper la video")
                                         .value("cut")
+                                });
+                                f.create_option(|o| {
+                                    o.label("Changer le container")
+                                        .value("remux")
                                 })
                             })
                         })
@@ -108,6 +112,8 @@ pub async fn run(
     .await?;
     // Get message of interaction reponse
     let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
+
+    let orig_cmd = cmd;
 
     // Await edit apply choice (with timeout)
     let Some(cmd) = interaction_reponse
@@ -121,10 +127,12 @@ pub async fn run(
     // Get edit kind from awaited interaction
     let edit_kind = &cmd.data.values[0].to_owned();
 
+
     // Match edit kinds
     let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
         "cut" => flows::cut::get_info(&cmd, &ctx, message).await?,
+        "remux" => flows::remux::get_info(&cmd, &ctx, message).await?,
         _ => {
             return Err(InteractionError::InvalidInput(
                 models::InvalidInputError::Error,

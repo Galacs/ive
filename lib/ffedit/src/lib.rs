@@ -11,7 +11,12 @@ pub mod utils;
 
 use tokio::process::{ChildStdout, Command};
 
-pub async fn run_ffmpeg_upload(video: &Video, bf_input_args: Vec<String>, args: Vec<String>) {
+pub async fn run_ffmpeg_upload(
+    video: &Video,
+    args: Option<Vec<&str>>,
+    input_args: Option<Vec<&str>>,
+    args_override: Option<Vec<&str>>,
+) {
     let uri = &video.url;
 
     let url = match uri {
@@ -19,17 +24,23 @@ pub async fn run_ffmpeg_upload(video: &Video, bf_input_args: Vec<String>, args: 
         VideoURI::Url(u) => u,
     };
 
-    let mut a = ["-y"].map(String::from).to_vec();
-    a.extend(bf_input_args);
-    a.extend(["-i".to_owned(), url.to_string()]);
-    a.extend(args);
-    a.extend([
-        "-f",
-        "mp4",
-        "-movflags",
-        "frag_keyframe+empty_moov",
-        "pipe:1",
-    ].map(String::from).to_vec());
+    let a = match args_override {
+        None => {
+            let mut a = vec!["-y"];
+            a.extend(args.unwrap());
+            a.extend(["-i", url]);
+            a.extend(input_args.unwrap());
+            a.extend([
+                "-f",
+                "mp4",
+                "-movflags",
+                "frag_keyframe+empty_moov",
+                "pipe:1",
+            ]);
+            a
+        }
+        Some(args) => args.iter().map(|x| *x).collect(),
+    };
 
     let mut cmd = Command::new("ffmpeg");
     cmd.args(a);
@@ -48,31 +59,61 @@ pub async fn run_ffmpeg_upload(video: &Video, bf_input_args: Vec<String>, args: 
         .unwrap();
 }
 
+pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), EncodeError> {
+    let uri = &video.url;
+
+    let url = match uri {
+        VideoURI::Path(p) => p,
+        VideoURI::Url(u) => u,
+    };
+
+    run_ffmpeg_upload(
+        video,
+        None,
+        None,
+        Some(vec![
+            "ffmpeg",
+            "-i",
+            url,
+            "-c",
+            "copy",
+            "-f",
+            "mkv",
+            "-movflags",
+            "frag_keyframe+empty_moov",
+            "pipe:1",
+        ]),
+    )
+    .await;
+    Ok(())
+}
+
 pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), EncodeError> {
-    let mut args: Vec<String> = Vec::new();
+    let mut args: Vec<&str> = Vec::new();
 
-    let mut bf: Vec<String> = Vec::new();
+    let mut bf: Vec<&str> = Vec::new();
 
+    let str;
     match &params.start {
         Some(time) => {
-            let str = time.to_string();
-            bf.extend(vec!["-ss".to_owned(), str]);
+            str = time.to_string();
+            bf.extend(vec!["-ss", &str]);
         }
         None => (),
     };
 
+    let str;
     match &params.end {
         Some(time) => {
-            let str = time.to_string();
-            bf.extend(vec!["-to".to_owned(), str]);
+            str = time.to_string();
+            bf.extend(vec!["-to", &str]);
         }
         None => (),
     };
 
-    let vec = ["-c:a", "copy", "-c:v", "copy"];
-    args.extend(vec.map(String::from).to_vec());
+    args.extend(vec!["-c:a", "copy", "-c:v", "copy"]);
 
-    run_ffmpeg_upload(&video, bf, args).await;
+    run_ffmpeg_upload(&video, Some(bf), Some(args), None).await;
     Ok(())
 }
 
@@ -202,7 +243,15 @@ mod tests {
             "toz123".to_owned(),
         );
 
-        cut(&video, &CutParameters { start: Some(2), end: None, }).await.unwrap();
+        cut(
+            &video,
+            &CutParameters {
+                start: Some(2),
+                end: None,
+            },
+        )
+        .await
+        .unwrap();
         assert_ne!(0, 0);
     }
 }

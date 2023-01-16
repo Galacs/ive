@@ -56,6 +56,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     let res = match &job.params {
         EncodeParameters::EncodeToSize(p) => ffedit::encoding::encode_to_size(&video, p).await,
         EncodeParameters::Cut(p) => ffedit::cut(&video, p).await,
+        EncodeParameters::Remux(p) => ffedit::remux(&video, p).await,
     };
 
     match res {

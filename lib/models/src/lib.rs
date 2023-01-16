@@ -35,6 +35,19 @@ pub struct CutParameters {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct RemuxParameters {
+    pub container: VideoContainer,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum VideoContainer {
+    MP3, 
+    MP4,
+    WEBM,
+    MKV,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum VideoURI {
     Path(String),
     Url(String),
@@ -57,6 +70,7 @@ pub enum JobKind {
 pub enum EncodeParameters {
     EncodeToSize(EncodeToSizeParameters),
     Cut(CutParameters),
+    Remux(RemuxParameters),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
