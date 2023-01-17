@@ -80,5 +80,11 @@ pub async fn get_info(
     // Ack modal interaction
     interaction.defer(&ctx.http).await?;
 
-    Ok(EncodeParameters::Cut(CutParameters {start: Some(start as u32), end: Some(end as u32) }))
+    match (start, end) {
+        (s, e) if (s, e) < (0.0, 0.0) => cmd.edit(&ctx.http, "Les nombres ne peuvent pas être négatives").await?,
+        (s, e) if s == 0.0 && e == 0.0 => cmd.edit(&ctx.http, "Les deux nombres de peuvent pas valoir 0").await?,
+        (s, e) if s > e => cmd.edit(&ctx.http, "Le debut de la vidéo doit être avant la fin").await?,
+        (s, e) => return Ok(EncodeParameters::Cut(CutParameters {start: Some(s as u32), end: Some(e as u32) }))
+    }
+    Err(InteractionError::InvalidInput(models::InvalidInputError::Error))
 }
