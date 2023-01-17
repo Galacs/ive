@@ -67,18 +67,25 @@ pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), Encode
         VideoURI::Url(u) => u,
     };
 
+    let format = match params.container {
+        VideoContainer::MKV => "matroska",
+        VideoContainer::MP4 => "mp4",
+        VideoContainer::MP3 => todo!(),
+        VideoContainer::WEBM => todo!(),
+    };
+
     run_ffmpeg_upload(
         video,
         None,
         None,
         Some(vec![
-            "ffmpeg",
+            "-y",
             "-i",
             url,
             "-c",
             "copy",
             "-f",
-            "mkv",
+            format,
             "-movflags",
             "frag_keyframe+empty_moov",
             "pipe:1",

@@ -4,6 +4,7 @@ use std::time::Duration;
 use serenity::async_trait;
 use serenity::builder::CreateApplicationCommand;
 use serenity::futures::StreamExt;
+use serenity::model::prelude::Message;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::interaction::message_component::MessageComponentInteraction;
 use serenity::model::prelude::interaction::InteractionResponseType;
@@ -42,23 +43,32 @@ impl EditMessage for ApplicationCommandInteraction {
     }
 }
 
+pub trait GetMessage {
+    fn get_message(&self) -> Result<&Message, InteractionError>;
+}
 
-pub async fn run(
-    cmd: &ApplicationCommandInteraction,
-    ctx: &Context,
-) -> Result<(), InteractionError> {
-    // Get message the command was called on
-    let message = &cmd
+impl GetMessage for ApplicationCommandInteraction {
+    fn get_message(&self) -> Result<&Message, InteractionError> {
+        Ok(self
         .data
         .resolved
         .messages
         .iter()
         .next()
         .ok_or(InteractionError::Error)?
-        .1;
+        .1)
+    }
+}
 
+
+
+pub async fn run(
+    cmd: &ApplicationCommandInteraction,
+    ctx: &Context,
+) -> Result<(), InteractionError> {
+    // Get message the command was called on
+    let message = cmd.get_message()?;
     let id = cmd.token.to_owned();
-    dbg!(&id);
 
     // Check if the message contains a valid number of attachments
     let number_of_files = message.attachments.len();
@@ -113,10 +123,8 @@ pub async fn run(
     // Get message of interaction reponse
     let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
 
-    let orig_cmd = cmd;
-
     // Await edit apply choice (with timeout)
-    let Some(cmd) = interaction_reponse
+    let Some(interaction_reponse) = interaction_reponse
         .await_component_interaction(&ctx)
         .timeout(Duration::from_secs(60 * 3))
         .await else {
@@ -125,14 +133,13 @@ pub async fn run(
     };
 
     // Get edit kind from awaited interaction
-    let edit_kind = &cmd.data.values[0].to_owned();
-
+    let edit_kind = &interaction_reponse.data.values[0].to_owned();
 
     // Match edit kinds
     let params = match edit_kind.as_str() {
-        "encode_to_size" => flows::encode_to_size::get_info(&cmd, &ctx, message).await?,
-        "cut" => flows::cut::get_info(&cmd, &ctx, message).await?,
-        "remux" => flows::remux::get_info(&cmd, &ctx, message).await?,
+        "encode_to_size" => flows::encode_to_size::get_info(&cmd, &interaction_reponse, &ctx).await?,
+        "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx).await?,
+        "remux" => flows::remux::get_info(&cmd, &interaction_reponse, &ctx).await?,
         _ => {
             return Err(InteractionError::InvalidInput(
                 models::InvalidInputError::Error,
@@ -180,6 +187,8 @@ pub async fn run(
     pubsub.subscribe(&channel).await?;
     let mut msg_stream = pubsub.into_on_message();
 
+    let extension;
+
     // Wait for done message
     loop {
         let payload: String = msg_stream
@@ -194,7 +203,10 @@ pub async fn run(
                 // Notify file queuing
                 cmd.edit(&ctx.http, &format!("Modification de **{}**...", message.attachments[0].filename)).await?;
             }
-            JobProgress::Done => break,
+            JobProgress::Done(fe) => {
+                extension = fe;
+                break
+            },
             JobProgress::Progress(_) => todo!(),
             JobProgress::Error(err) => match err {
                 EncodeError::EncodeToSize(err) => {
@@ -213,7 +225,7 @@ pub async fn run(
 
     let mut path = PathBuf::new();
     path = path.join(Path::new(&attachment.filename));
-    path.set_extension("mp4");
+    path.set_extension(extension);
     let filename = path.to_str().ok_or(InteractionError::Error)?;
 
     cmd.channel_id

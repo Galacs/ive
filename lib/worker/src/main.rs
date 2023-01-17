@@ -70,7 +70,12 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     let dir = ffedit::encoding::get_working_dir(&video.id)?;
     tokio::fs::remove_dir_all(dir).await?;
 
-    let str = serde_json::to_string(&JobProgress::Done)?;
+    let file_extension = match job.params {
+        EncodeParameters::Remux(container) => container.container.get_file_extension(),
+        _ => "mp4".to_owned(),
+    };
+
+    let str = serde_json::to_string(&JobProgress::Done(file_extension.to_owned()))?;
     let _: () = client.publish(&channel, str)?;
     Ok(())
 }

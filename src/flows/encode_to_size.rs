@@ -3,7 +3,7 @@ use std::time::Duration;
 use serenity::{
     model::prelude::{
         component::{ActionRowComponent, InputTextStyle},
-        interaction::{message_component::MessageComponentInteraction, InteractionResponseType},
+        interaction::{message_component::MessageComponentInteraction, InteractionResponseType, application_command::ApplicationCommandInteraction},
         Message,
     },
     prelude::Context,
@@ -11,15 +11,16 @@ use serenity::{
 
 use models::{EncodeParameters, EncodeToSizeParameters, InteractionError};
 
-use crate::commands::edit::EditMessage;
+use crate::commands::edit::{EditMessage, GetMessage};
 
 pub async fn get_info(
-    cmd: &MessageComponentInteraction,
-    ctx: &Context,
-    original_msg: &Message,
+    cmd: &ApplicationCommandInteraction,
+    interaction_reponse: &MessageComponentInteraction,
+    ctx: &Context
 ) -> Result<EncodeParameters, InteractionError> {
+    let message = cmd.get_message()?;
     // Display modal asking for target size
-    cmd.create_interaction_response(&ctx.http, |response| {
+    interaction_reponse.create_interaction_response(&ctx.http, |response| {
         response
             .kind(InteractionResponseType::Modal)
             .interaction_response_data(|modal| {
@@ -33,7 +34,7 @@ pub async fn get_info(
                                 menu.custom_id("size_text");
                                 menu.placeholder(format!(
                                     "Taille actuelle: {:.2} Mo",
-                                    original_msg.attachments[0].size as f64 / 2_i32.pow(20) as f64
+                                    message.attachments[0].size as f64 / 2_i32.pow(20) as f64
                                 ));
                                 menu.style(InputTextStyle::Short);
                                 menu.label("Taille");
@@ -45,7 +46,7 @@ pub async fn get_info(
     })
     .await?;
     // Get message of interaction reponse
-    let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
+    let interaction_reponse = &interaction_reponse.get_interaction_response(&ctx.http).await?;
 
     // Await modal reponse
     let interaction = match interaction_reponse

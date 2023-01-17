@@ -17,19 +17,22 @@ use models::{
     RemuxParameters, VideoContainer,
 };
 
-use crate::commands::edit::EditMessage;
+use crate::commands::edit::{EditMessage, GetMessage};
 
 pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
-    ctx: &Context,
-    original_msg: &Message,
+    interaction_reponse: &MessageComponentInteraction,
+    ctx: &Context
 ) -> Result<EncodeParameters, InteractionError> {
-    // Display modal asking for target size
     // Create interaction response asking what edit to apply
-    let message = cmd.create_followup_message(&ctx.http, |m| {
+    interaction_reponse.defer(&ctx.http).await?;
+
+    let sender_message = cmd.get_message()?;
+
+    cmd.edit_original_interaction_response(&ctx.http, |m| {
         m.content(format!(
             "Vers quel format convertir **{}** ?",
-            original_msg.attachments[0].filename
+            sender_message.attachments[0].filename
         ));
         m.components(|comps| {
             comps.create_action_row(|row| {
@@ -43,14 +46,11 @@ pub async fn get_info(
                 })
             })
         })
-    })
-    .await?;
-
-    // Delete original interaction message
-    cmd.delete_original_interaction_response(&ctx.http).await?;
+    }).await?;
 
     // Await edit apply choice (with timeout)
-    let Some(interaction) = cmd.get_followup_message(&ctx.http, message).await?
+    let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
+    let Some(interaction) = interaction_reponse
         .await_component_interaction(&ctx)
         .timeout(Duration::from_secs(60 * 3))
         .await else {
@@ -58,11 +58,7 @@ pub async fn get_info(
         return Err(InteractionError::Timeout);
     };
 
-    // Ack modal interaction
-    // interaction.defer(&ctx.http).await?;
-
     // Get edit kind from awaited interaction
-
     let container = match interaction.data.values[0].as_str() {
         "mp4" => VideoContainer::MP4,
         "mkv" => VideoContainer::MKV,
