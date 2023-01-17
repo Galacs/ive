@@ -102,15 +102,15 @@ pub async fn run(
                             menu.placeholder("Choisissez une modification");
                             menu.options(|f| {
                                 f.create_option(|o| {
-                                    o.label("Changer la taille du fichier")
+                                    o.label("Changer la taille du fichier (Preview)")
                                         .value("encode_to_size")
                                 });
                                 f.create_option(|o| {
-                                    o.label("Couper la video")
+                                    o.label("Couper la video (Preview)")
                                         .value("cut")
                                 });
                                 f.create_option(|o| {
-                                    o.label("Changer le container")
+                                    o.label("Changer le container (Preview)")
                                         .value("remux")
                                 })
                             })
