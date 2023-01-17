@@ -20,7 +20,7 @@ pub enum JobProgress {
     Started,
     Progress(f32),
     Error(EncodeError),
-    Done,
+    Done(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -33,6 +33,19 @@ pub struct CutParameters {
     pub start: Option<u32>,
     pub end: Option<u32>,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RemuxParameters {
+    pub container: VideoContainer,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum VideoContainer {
+    MP3, 
+    MP4,
+    WEBM,
+    MKV,
+}
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum VideoURI {
@@ -57,6 +70,7 @@ pub enum JobKind {
 pub enum EncodeParameters {
     EncodeToSize(EncodeToSizeParameters),
     Cut(CutParameters),
+    Remux(RemuxParameters),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -82,6 +96,17 @@ impl Video {
             id: "".to_owned(),
             filename
         }
+    }
+}
+
+impl VideoContainer {
+    pub fn get_file_extension(&self) -> String {
+        match self {
+            VideoContainer::MKV => "mkv",
+            VideoContainer::MP4 => "mp4",
+            VideoContainer::MP3 => "mp3",
+            VideoContainer::WEBM => "webm",
+        }.to_owned()
     }
 }
 
