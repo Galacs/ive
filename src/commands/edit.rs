@@ -137,14 +137,18 @@ pub async fn run(
 
     // Match edit kinds
     let params = match edit_kind.as_str() {
-        "encode_to_size" => flows::encode_to_size::get_info(&cmd, &interaction_reponse, &ctx).await?,
-        "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx).await?,
-        "remux" => flows::remux::get_info(&cmd, &interaction_reponse, &ctx).await?,
+        "encode_to_size" => flows::encode_to_size::get_info(&cmd, &interaction_reponse, &ctx).await,
+        "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx).await,
+        "remux" => flows::remux::get_info(&cmd, &interaction_reponse, &ctx).await,
         _ => {
             return Err(InteractionError::InvalidInput(
                 models::InvalidInputError::Error,
             ))
         }
+    };
+
+    let Ok(params) = params else {
+        return Ok(())
     };
 
     // let error_message;
@@ -219,6 +223,13 @@ pub async fn run(
 
     let bucket = config::get_s3_bucket();
     let res_files = bucket.get_object(&id).await?;
+    bucket.delete_object(id).await?;
+    let filesize = res_files.bytes().len();
+    
+    if filesize > (8 * 2_i32.pow(20)) as usize {
+        cmd.edit(&ctx.http, &format!("**{}** ne peut pas être envoyé car {:.2}Mo > 8Mo (limite de discord)", message.attachments[0].filename, filesize / 2_usize.pow(20))).await?;
+        return Ok(())
+    }
 
     // Notify file upload
     cmd.edit(&ctx.http, &format!("Envoi de **{}** modifié...", message.attachments[0].filename)).await?;
@@ -235,7 +246,6 @@ pub async fn run(
         })
         .await?;
 
-    bucket.delete_object(id).await?;
 
     // Edit original interaction to notify sucess
     cmd.edit(&ctx.http, &format!("**{}** à été modifié avec success", message.attachments[0].filename)).await?;

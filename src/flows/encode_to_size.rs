@@ -76,9 +76,14 @@ pub async fn get_info(
             Err(InteractionError::InvalidInput(models::InvalidInputError::StringParse(err)))
         },
         Ok(t) => {
-            Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
-                target_size: (t * 2_f32.powf(20.0)) as u32,
-            }))
+            if t > 15.0 {
+                cmd.edit(&ctx.http, &format!("**{}** ne pourra pas être envoyé car {}Mo > 8Mo (limite de discord)", message.attachments[0].filename, t)).await?;
+                Err(InteractionError::InvalidInput(models::InvalidInputError::Error))
+            } else {
+                Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
+                    target_size: (t * 2_f32.powf(20.0)) as u32,
+                }))
+            }
         }
     }
 }
