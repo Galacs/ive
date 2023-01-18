@@ -1,4 +1,4 @@
-use std::process::Stdio;
+use std::{process::Stdio, path::{PathBuf, Path}};
 
 use models::*;
 
@@ -28,7 +28,7 @@ impl Run for FfmpegBuilder<'_> {
 
         let mut child = ffmpeg.unwrap().process;
         let mut stdout = child.stdout.unwrap();
-        let mut stderr = child.stderr.unwrap();
+        // let mut stderr = child.stderr.unwrap();
 
         let bucket = config::get_s3_bucket();
         let res = bucket
@@ -37,8 +37,8 @@ impl Run for FfmpegBuilder<'_> {
             .unwrap();
 
         let mut str = String::new();
-        stderr.read_to_string(&mut str).await;
-        dbg!(str);
+        // stderr.read_to_string(&mut str).await;
+        // dbg!(str);
     }
 }
 pub trait FfmpegBuilderDefault<'a> {
@@ -54,58 +54,76 @@ impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
             ffmpeg_command: "ffmpeg",
             stdin: Stdio::null(),
             stdout: Stdio::piped(),
-            stderr: Stdio::piped(),
+            stderr: Stdio::inherit(),
         }
     }
 
 }
 
-pub async fn run_ffmpeg_upload(
-    video: &Video,
-    args: Option<Vec<&str>>,
-    input_args: Option<Vec<&str>>,
-    args_override: Option<Vec<&str>>,
-) {
-    let uri = &video.url;
+pub fn get_working_dir(id: &String) -> Result<PathBuf, InteractionError> {
+    let dir = Path::new("tmpfs/").join(format!("{}", id));
+    let dir = std::env::current_dir()?.join(dir);
+    Ok(dir)
+}
 
-    let url = match uri {
-        VideoURI::Path(p) => p,
-        VideoURI::Url(u) => u,
+pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> Result<(), EncodeError> {
+    let url = match &video.url {
+        VideoURI::Url(p) => p,
+        _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI)),
     };
 
-    let a = match args_override {
-        None => {
-            let mut a = vec!["-y"];
-            a.extend(args.unwrap());
-            a.extend(["-i", url]);
-            a.extend(input_args.unwrap());
-            a.extend([
-                "-f",
-                "mp4",
-                "-movflags",
-                "frag_keyframe+empty_moov",
-                "pipe:1",
-            ]);
-            a
-        }
-        Some(args) => args.iter().map(|x| *x).collect(),
-    };
+    ffmpeg::init().unwrap();
 
-    let mut cmd = Command::new("ffmpeg");
-    cmd.args(a);
+    let input = ffmpeg::format::input(url).unwrap();
+    let duration = utils::get_duration(&input);
+    let audio_rate = utils::get_audio_bitrate(&input);
 
-    cmd.stdout(std::process::Stdio::piped());
-    let mut child = cmd.spawn().expect("failed to spawn command");
-    let mut stdout = child
-        .stdout
-        .take()
-        .expect("child did not have a handle to stdout");
+    let t_minsize = (audio_rate as f32 * duration) / 8192_f32;
+    let size: f32 = params.target_size as f32 / 2_f32.powf(20.0);
+    if t_minsize > size {
+        return Err(EncodeError::EncodeToSize(EncodeToSizeError::TargetSizeTooSmall));
+    }
 
-    let bucket = config::get_s3_bucket();
-    let res = bucket
-        .put_object_stream(&mut stdout, &video.id)
-        .await
-        .unwrap();
+    let target_vrate = (size * 8192.0) / (1.048576 * duration) - audio_rate as f32;
+
+    let dir = get_working_dir(&video.id).unwrap();
+    // dbg!(&dir);
+    // tokio::fs::create_dir(&dir).await.unwrap();
+
+    let mut builder = FfmpegBuilder::default(url);
+    builder.stdout = Stdio::null();
+
+    let target_vrate = format!("{}k", target_vrate);
+    let audio_rate = format!("{}k", audio_rate);
+
+    let a = dir.join(Path::new("pass"));
+    let passfile_prefix = a.to_str().unwrap();
+
+    let file = File::new("pipe:1").option(Parameter::KeyValue("f", "mp4"))
+    .option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"))
+    .option(Parameter::KeyValue("c:v", "libx264"))
+    .option(Parameter::KeyValue("b:v", &target_vrate))
+    .option(Parameter::KeyValue("pass", "1"))
+    .option(Parameter::Single("an"))
+    .option(Parameter::KeyValue("passlogfile", passfile_prefix));
+    builder.outputs = vec![file];
+
+    builder.run().await.unwrap().process.wait().await.unwrap();
+ 
+    let mut builder = FfmpegBuilder::default(url);
+
+    let file = File::new("pipe:1").option(Parameter::KeyValue("f", "mp4"))
+    .option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"))
+    .option(Parameter::KeyValue("c:v", "libx264"))
+    .option(Parameter::KeyValue("b:v", &target_vrate))
+    .option(Parameter::KeyValue("pass", "2"))
+    .option(Parameter::KeyValue("c:a", "aac"))
+    .option(Parameter::KeyValue("b:a", &audio_rate))
+    .option(Parameter::KeyValue("passlogfile", passfile_prefix));
+    builder.outputs = vec![file];
+
+    builder.run_and_upload(&video.id).await;
+    Ok(())
 }
 
 pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), EncodeError> {

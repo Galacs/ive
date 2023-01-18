@@ -54,7 +54,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     let _: () = client.publish(&channel, str)?;
 
     let res = match &job.params {
-        EncodeParameters::EncodeToSize(p) => ffedit::encoding::encode_to_size(&video, p).await,
+        EncodeParameters::EncodeToSize(p) => ffedit::encode_to_size(&video, p).await,
         EncodeParameters::Cut(p) => ffedit::cut(&video, p).await,
         EncodeParameters::Remux(p) => ffedit::remux(&video, p).await,
     };
@@ -67,7 +67,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
         Ok(_) => {},
     }
 
-    let dir = ffedit::encoding::get_working_dir(&video.id)?;
+    let dir = ffedit::get_working_dir(&video.id)?;
     tokio::fs::remove_dir_all(dir).await?;
 
     let file_extension = match job.params {
