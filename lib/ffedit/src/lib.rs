@@ -9,7 +9,56 @@ extern crate models;
 pub mod encoding;
 pub mod utils;
 
-use tokio::process::{ChildStdout, Command};
+use tokio::{process::{ChildStdout, Command}, io::AsyncReadExt};
+
+use ffmpeg_cli::{FfmpegBuilder, File, Parameter};
+use futures::{future::ready, StreamExt};
+
+use async_trait::async_trait;
+
+#[async_trait]
+pub trait Run {
+    async fn run_and_upload(self, id: &str);
+}
+
+#[async_trait]
+impl Run for FfmpegBuilder<'_> {
+    async fn run_and_upload(self, id: &str) {
+        let ffmpeg = self.run().await;
+
+        let mut child = ffmpeg.unwrap().process;
+        let mut stdout = child.stdout.unwrap();
+        let mut stderr = child.stderr.unwrap();
+
+        let bucket = config::get_s3_bucket();
+        let res = bucket
+            .put_object_stream(&mut stdout, &id)
+            .await
+            .unwrap();
+
+        let mut str = String::new();
+        stderr.read_to_string(&mut str).await;
+        dbg!(str);
+    }
+}
+pub trait FfmpegBuilderDefault<'a> {
+    fn default(url: &str) -> FfmpegBuilder;
+}
+
+impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
+    fn default(url: &str) -> FfmpegBuilder {
+        FfmpegBuilder {
+            options: vec![Parameter::Single("nostdin"), Parameter::Single("y")],
+            inputs: vec![File::new(url)],
+            outputs: vec![File::new("pipe:1").option(Parameter::KeyValue("f", "mp4")).option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"))],
+            ffmpeg_command: "ffmpeg",
+            stdin: Stdio::null(),
+            stdout: Stdio::piped(),
+            stderr: Stdio::piped(),
+        }
+    }
+
+}
 
 pub async fn run_ffmpeg_upload(
     video: &Video,
@@ -60,9 +109,7 @@ pub async fn run_ffmpeg_upload(
 }
 
 pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), EncodeError> {
-    let uri = &video.url;
-
-    let url = match uri {
+    let url = match &video.url {
         VideoURI::Path(p) => p,
         VideoURI::Url(u) => u,
     };
@@ -74,53 +121,33 @@ pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), Encode
         VideoContainer::WEBM => todo!(),
     };
 
-    run_ffmpeg_upload(
-        video,
-        None,
-        None,
-        Some(vec![
-            "-y",
-            "-i",
-            url,
-            "-c",
-            "copy",
-            "-f",
-            format,
-            "-movflags",
-            "frag_keyframe+empty_moov",
-            "pipe:1",
-        ]),
-    )
-    .await;
+    let mut builder = FfmpegBuilder::default(url);
+    let file = File::new("pipe:1").option(Parameter::KeyValue("f", format)).option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"));
+    builder.outputs = vec![file];
+
+    builder.run_and_upload(&video.id).await;
     Ok(())
 }
 
 pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), EncodeError> {
-    let mut args: Vec<&str> = Vec::new();
-
-    let mut bf: Vec<&str> = Vec::new();
-
-    let str;
-    match &params.start {
-        Some(time) => {
-            str = time.to_string();
-            bf.extend(vec!["-ss", &str]);
-        }
-        None => (),
+    let url = match &video.url {
+        VideoURI::Path(u) => u,
+        VideoURI::Url(u) => u,
     };
-
+    let mut builder = FfmpegBuilder::default(url);
+    
     let str;
-    match &params.end {
-        Some(time) => {
-            str = time.to_string();
-            bf.extend(vec!["-to", &str]);
-        }
-        None => (),
-    };
+    if let Some(time) = params.start {
+        str = time.to_string();
+        builder = builder.option(Parameter::KeyValue("ss", &str));
+    }
+    let str;
+    if let Some(time) = params.end {
+        str = time.to_string();
+        builder = builder.option(Parameter::KeyValue("to", &str));
+    }
 
-    args.extend(vec!["-c:a", "copy", "-c:v", "copy"]);
-
-    run_ffmpeg_upload(&video, Some(bf), Some(args), None).await;
+    builder.run_and_upload(&video.id).await;
     Ok(())
 }
 

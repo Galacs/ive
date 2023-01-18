@@ -15,6 +15,7 @@ ffedit = { path = "lib/ffedit" }
 models = { path = "lib/models" }
 queue = { path = "lib/queue" }
 config = { path = "lib/config" }
+ffmpeg-cli = { path = "lib/ffmpeg-cli" }
 redis = { version = "0.22.1", features = ["tokio-comp"] }
 async-trait = "0.1.58"
 serde = { version = "1.0", features = ["derive"] }

@@ -10,4 +10,7 @@ ffmpeg-next = { version = "5.1.1", features = [ "codec", "format" ] }
 models = { workspace = true }
 tokio = { workspace = true }
 config = { workspace = true }
+async-trait = { workspace = true }
 rust-s3 = "0.32"
+ffmpeg-cli = { workspace = true }
+futures = "0.3.*"
