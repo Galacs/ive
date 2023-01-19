@@ -4,7 +4,6 @@ use serenity::{
     model::prelude::{
         component::{ActionRowComponent, InputTextStyle},
         interaction::{message_component::MessageComponentInteraction, InteractionResponseType, application_command::ApplicationCommandInteraction},
-        Message,
     },
     prelude::Context,
 };

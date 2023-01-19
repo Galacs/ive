@@ -1,15 +1,14 @@
-use std::{time::Duration, num::ParseFloatError};
+use std::time::Duration;
 
 use serenity::{
     model::prelude::{
         component::{ActionRowComponent, InputTextStyle},
         interaction::{message_component::MessageComponentInteraction, InteractionResponseType, application_command::ApplicationCommandInteraction},
-        Message,
     },
     prelude::Context,
 };
 
-use models::{EncodeParameters, EncodeToSizeParameters, InteractionError, CutParameters};
+use models::{EncodeParameters, InteractionError, CutParameters};
 
 use crate::commands::edit::EditMessage;
 

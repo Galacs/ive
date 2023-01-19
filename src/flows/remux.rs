@@ -1,19 +1,17 @@
-use std::{num::ParseFloatError, time::Duration};
+use std::time::Duration;
 
 use serenity::{
     model::prelude::{
-        component::{ActionRowComponent, InputTextStyle},
         interaction::{
             application_command::ApplicationCommandInteraction,
-            message_component::MessageComponentInteraction, InteractionResponseType,
+            message_component::MessageComponentInteraction,
         },
-        Message,
     },
     prelude::Context,
 };
 
 use models::{
-    CutParameters, EncodeParameters, EncodeToSizeParameters, InteractionError, InvalidInputError,
+    EncodeParameters, InteractionError, InvalidInputError,
     RemuxParameters, VideoContainer,
 };
 

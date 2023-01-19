@@ -3,16 +3,14 @@ mod flows;
 mod utils;
 
 use std::env;
-use std::path::Path;
 
 use models::InteractionError;
 use serenity::async_trait;
 use serenity::model::application::interaction::Interaction;
 use serenity::model::gateway::Ready;
-use serenity::model::id::GuildId;
+// use serenity::model::id::GuildId;
 use serenity::model::prelude::command::{CommandType, Command};
 use serenity::prelude::*;
-use tokio::fs::create_dir;
 
 struct Handler;
 
@@ -42,12 +40,12 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
 
-        let guild_id = GuildId(
-            env::var("GUILD_ID")
-                .expect("Expected GUILD_ID in environment")
-                .parse()
-                .expect("GUILD_ID must be an integer"),
-        );
+        // let guild_id = GuildId(
+        //     env::var("GUILD_ID")
+        //         .expect("Expected GUILD_ID in environment")
+        //         .parse()
+        //         .expect("GUILD_ID must be an integer"),
+        // );
 
         // let _commands = GuildId::set_application_commands(&guild_id, &ctx.http, |commands| {
         //     commands
@@ -60,7 +58,7 @@ impl EventHandler for Handler {
 
         // println!("I now have the following guild slash commands: {:#?}", _commands);
 
-        let guild_command = Command::create_global_application_command(&ctx.http, |command| {
+        let _guild_command = Command::create_global_application_command(&ctx.http, |command| {
             commands::ping::register(command);
             commands::edit::register(command).kind(CommandType::Message)
         })

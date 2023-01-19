@@ -4,15 +4,9 @@ use models::*;
 
 extern crate ffmpeg_next as ffmpeg;
 
-extern crate models;
-
-pub mod encoding;
 pub mod utils;
 
-use tokio::{process::{ChildStdout, Command}, io::AsyncReadExt};
-
 use ffmpeg_cli::{FfmpegBuilder, File, Parameter};
-use futures::{future::ready, StreamExt};
 
 use async_trait::async_trait;
 
@@ -26,19 +20,15 @@ impl Run for FfmpegBuilder<'_> {
     async fn run_and_upload(self, id: &str) {
         let ffmpeg = self.run().await;
 
-        let mut child = ffmpeg.unwrap().process;
+        let child = ffmpeg.unwrap().process;
         let mut stdout = child.stdout.unwrap();
         // let mut stderr = child.stderr.unwrap();
 
         let bucket = config::get_s3_bucket();
-        let res = bucket
+        let _res = bucket
             .put_object_stream(&mut stdout, &id)
             .await
             .unwrap();
-
-        let mut str = String::new();
-        // stderr.read_to_string(&mut str).await;
-        // dbg!(str);
     }
 }
 pub trait FfmpegBuilderDefault<'a> {
