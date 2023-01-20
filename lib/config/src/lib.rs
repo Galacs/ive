@@ -1,9 +1,5 @@
-use s3::{creds, region};
-
-use creds::Credentials;
-use region::Region;
-use s3::error::S3Error;
-use s3::Bucket;
+use s3::{creds::Credentials, region::Region, Bucket};
+use std::env;
 
 pub fn get_s3_bucket() -> Bucket {
     let creds = Credentials::new(Some("minioadmin"), Some("minioadmin"), None, None, None).unwrap();
@@ -12,7 +8,7 @@ pub fn get_s3_bucket() -> Bucket {
         "ive",
         Region::Custom {
             region: "my-store".to_owned(),
-            endpoint: "http://minio:9000".to_owned(),
+            endpoint: env::var("IVE_S3_URL").expect("Expected an s3 url in the environment"),
         },
         creds,
     )
@@ -23,5 +19,5 @@ pub fn get_s3_bucket() -> Bucket {
 }
 
 pub fn get_redis_client() -> redis::Client {
-    redis::Client::open("redis://redis/").unwrap()
+    redis::Client::open(env::var("IVE_REDIS_URL").expect("Expected a redis url in the environment")).unwrap()
 }
