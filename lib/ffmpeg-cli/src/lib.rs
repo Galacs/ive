@@ -57,7 +57,7 @@ pub use runner::*;
 #[derive(Debug)]
 pub struct FfmpegBuilder<'a> {
     /// The global options.
-    pub options: Vec<Parameter<'a>>,
+    pub options: Vec<Parameter>,
     /// The input files.
     pub inputs: Vec<File<'a>>,
     /// The output files.
@@ -83,22 +83,31 @@ pub struct File<'a> {
     /// As with ffmpeg, just a normal path works.
     pub url: &'a str,
     /// The options corresponding to this file.
-    pub options: Vec<Parameter<'a>>,
+    pub options: Vec<Parameter>,
 }
 
 /// A global or file option to be passed to ffmpeg.
 #[derive(Debug)]
-pub enum Parameter<'a> {
+pub enum Parameter {
     /// An option which does not take a value, ex. `-autorotate`.
     ///
     /// `-autorotate` would be represented as `Single("autorotate")`,
     /// as the `-` is inserted automatically.
-    Single(&'a str),
+    Single(String),
     /// An option that takes a key and a value, ex. `-t 10`.
     ///
     /// `-t 10` would be represented as `KeyValue("t", "10")`, as
     /// the `-` is inserted automatically.
-    KeyValue(&'a str, &'a str),
+    KeyValue(String, String),
+}
+
+impl Parameter {
+    pub fn single(str: impl Into<String>) -> Self {
+        Self::Single(str.into())
+    }
+    pub fn key_value(str1: impl Into<String>, str2: impl Into<String>) -> Self {
+        Self::KeyValue(str1.into(), str2.into())
+    }
 }
 
 impl<'a> FfmpegBuilder<'a> {
@@ -116,7 +125,7 @@ impl<'a> FfmpegBuilder<'a> {
     }
 
     /// Adds an option.
-    pub fn option(mut self, option: Parameter<'a>) -> Self {
+    pub fn option(mut self, option: Parameter) -> Self {
         self.options.push(option);
 
         self
@@ -192,7 +201,7 @@ impl<'a> File<'a> {
     }
 
     /// Adds an option.
-    pub fn option(mut self, option: Parameter<'a>) -> Self {
+    pub fn option(mut self, option: Parameter) -> Self {
         self.options.push(option);
 
         self
@@ -210,7 +219,7 @@ impl<'a> File<'a> {
     }
 }
 
-impl<'a> Parameter<'a> {
+impl Parameter {
     fn push_to(&self, command: &mut Command) {
         match &self {
             Parameter::Single(arg) => command.arg("-".to_owned() + arg),

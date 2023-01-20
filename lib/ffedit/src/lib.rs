@@ -38,9 +38,9 @@ pub trait FfmpegBuilderDefault<'a> {
 impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
     fn default(url: &str) -> FfmpegBuilder {
         FfmpegBuilder {
-            options: vec![Parameter::Single("nostdin"), Parameter::Single("y")],
+            options: vec![Parameter::single("nostdin"), Parameter::single("y")],
             inputs: vec![File::new(url)],
-            outputs: vec![File::new("pipe:1").option(Parameter::KeyValue("f", "mp4")).option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"))],
+            outputs: vec![File::new("pipe:1").option(Parameter::key_value("f", "mp4")).option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))],
             ffmpeg_command: "ffmpeg",
             stdin: Stdio::null(),
             stdout: Stdio::piped(),
@@ -89,27 +89,27 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     let a = dir.join(Path::new("pass"));
     let passfile_prefix = a.to_str().unwrap();
 
-    let file = File::new("pipe:1").option(Parameter::KeyValue("f", "mp4"))
-    .option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"))
-    .option(Parameter::KeyValue("c:v", "libx264"))
-    .option(Parameter::KeyValue("b:v", &target_vrate))
-    .option(Parameter::KeyValue("pass", "1"))
-    .option(Parameter::Single("an"))
-    .option(Parameter::KeyValue("passlogfile", passfile_prefix));
+    let file = File::new("pipe:1").option(Parameter::key_value("f", "mp4"))
+    .option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
+    .option(Parameter::key_value("c:v", "libx264"))
+    .option(Parameter::key_value("b:v", &target_vrate))
+    .option(Parameter::key_value("pass", "1"))
+    .option(Parameter::single("an"))
+    .option(Parameter::key_value("passlogfile", passfile_prefix));
     builder.outputs = vec![file];
 
     builder.run().await.unwrap().process.wait().await.unwrap();
  
     let mut builder = FfmpegBuilder::default(url);
 
-    let file = File::new("pipe:1").option(Parameter::KeyValue("f", "mp4"))
-    .option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"))
-    .option(Parameter::KeyValue("c:v", "libx264"))
-    .option(Parameter::KeyValue("b:v", &target_vrate))
-    .option(Parameter::KeyValue("pass", "2"))
-    .option(Parameter::KeyValue("c:a", "aac"))
-    .option(Parameter::KeyValue("b:a", &audio_rate))
-    .option(Parameter::KeyValue("passlogfile", passfile_prefix));
+    let file = File::new("pipe:1").option(Parameter::key_value("f", "mp4"))
+    .option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
+    .option(Parameter::key_value("c:v", "libx264"))
+    .option(Parameter::key_value("b:v", &target_vrate))
+    .option(Parameter::key_value("pass", "2"))
+    .option(Parameter::key_value("c:a", "aac"))
+    .option(Parameter::key_value("b:a", &audio_rate))
+    .option(Parameter::key_value("passlogfile", passfile_prefix));
     builder.outputs = vec![file];
 
     builder.run_and_upload(&video.id).await;
@@ -130,7 +130,7 @@ pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), Encode
     };
 
     let mut builder = FfmpegBuilder::default(url);
-    let file = File::new("pipe:1").option(Parameter::KeyValue("f", format)).option(Parameter::KeyValue("movflags", "frag_keyframe+empty_moov"));
+    let file = File::new("pipe:1").option(Parameter::key_value("f", format)).option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"));
     builder.outputs = vec![file];
 
     builder.run_and_upload(&video.id).await;
@@ -147,12 +147,12 @@ pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), EncodeErro
     let str;
     if let Some(time) = params.start {
         str = time.to_string();
-        builder = builder.option(Parameter::KeyValue("ss", &str));
+        builder = builder.option(Parameter::key_value("ss", &str));
     }
     let str;
     if let Some(time) = params.end {
         str = time.to_string();
-        builder = builder.option(Parameter::KeyValue("to", &str));
+        builder = builder.option(Parameter::key_value("to", &str));
     }
 
     builder.run_and_upload(&video.id).await;

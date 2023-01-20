@@ -102,7 +102,7 @@ impl<'a> FfmpegBuilder<'a> {
         let port = listener.local_addr()?.port();
         let prog_url = format!("tcp://127.0.0.1:{}", port);
 
-        self = self.option(Parameter::KeyValue("progress", &prog_url));
+        self = self.option(Parameter::key_value("progress", &prog_url));
         let mut command = self.to_command();
         let child = command.spawn()?;
 
