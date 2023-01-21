@@ -40,7 +40,8 @@ impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
         FfmpegBuilder {
             options: vec![Parameter::single("nostdin"), Parameter::single("y")],
             inputs: vec![File::new(url)],
-            outputs: vec![File::new("pipe:1").option(Parameter::key_value("f", "mp4")).option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))],
+            outputs: vec![File::new("pipe:1").option(Parameter::key_value("f", "mp4")).option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
+                .option(Parameter::key_value("c:v", "copy")).option(Parameter::key_value("c:a", "copy"))],
             ffmpeg_command: "ffmpeg",
             stdin: Stdio::null(),
             stdout: Stdio::piped(),
@@ -130,7 +131,8 @@ pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), Encode
     };
 
     let mut builder = FfmpegBuilder::default(url);
-    let file = File::new("pipe:1").option(Parameter::key_value("f", format)).option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"));
+    let file = File::new("pipe:1").option(Parameter::key_value("f", format)).option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
+    .option(Parameter::key_value("c:v", "copy")).option(Parameter::key_value("c:a", "copy"));
     builder.outputs = vec![file];
 
     builder.run_and_upload(&video.id).await;
