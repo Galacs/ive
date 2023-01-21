@@ -143,18 +143,14 @@ pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), EncodeErro
         VideoURI::Url(u) => u,
     };
     let mut builder = FfmpegBuilder::default(url);
-    
-    let str;
-    if let Some(time) = params.start {
-        str = time.to_string();
-        builder = builder.option(Parameter::key_value("ss", &str));
-    }
-    let str;
-    if let Some(time) = params.end {
-        str = time.to_string();
-        builder = builder.option(Parameter::key_value("to", &str));
-    }
 
+    if let Some(time) = params.start {
+        builder = builder.option(Parameter::key_value("ss", time.to_string()));
+    }
+    if let Some(time) = params.end {
+        builder = builder.option(Parameter::key_value("to", time.to_string()));
+    }
+    
     builder.run_and_upload(&video.id).await;
     Ok(())
 }
