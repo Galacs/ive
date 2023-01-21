@@ -1,16 +1,19 @@
 use s3::error::S3Error;
 use serde::{Deserialize, Serialize};
 use serenity::prelude::SerenityError;
+use thiserror::Error;
 
 
-#[derive(Serialize, Deserialize, Debug)]
-pub enum 
-EncodeToSizeError {
+#[derive(Error, Serialize, Deserialize, Debug)]
+pub enum EncodeToSizeError {
+    #[error("Unsupported URL")]
     UnsupportedURI,
+    #[error("Target size too small")]
     TargetSizeTooSmall,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Error, Serialize, Deserialize, Debug)]
+#[error("Encode error: {0}")]
 pub enum EncodeError {
     EncodeToSize(EncodeToSizeError),
 }
@@ -19,7 +22,7 @@ pub enum EncodeError {
 pub enum JobProgress {
     Started,
     Progress(f32),
-    Error(EncodeError),
+    Error(String),
     Done(String),
 }
 
@@ -137,12 +140,43 @@ pub enum EditError {
     WrongFileNumber(u32),
 }
 
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum InvalidInputError {
+    #[error("Invalid input error")]
     Error,
-    StringParse(std::num::ParseFloatError),
+    #[error("Invalid parse float Error: {0:?}")]
+    StringParse(#[from] std::num::ParseFloatError),
 }
 
+/// Various errors that can occur as it runs.
+#[derive(Error, Debug)]
+pub enum FfmpegError {
+    #[error("Io Error: {0}")]
+    IoError(
+        #[source]
+        #[from]
+        std::io::Error,
+    ),
+    #[error("Invalid key=value pair: {0}")]
+    KeyValueParseError(String),
+    #[error("Unknown status: {0}")]
+    UnknownStatusError(String),
+    #[error("Parse Error: {0}")]
+    OtherParseError(#[source] Box<dyn std::error::Error + Send>, String),
+    #[error("Exited: {0}")]
+    Exit(std::process::ExitStatus)
+}
+
+#[derive(Error, Debug)]
+#[error("Worker Error: {0}")]
+pub enum WorkerError {
+    InvalidInput(#[from] InvalidInputError),
+    Ffmpeg(#[from] FfmpegError),
+    EncodeError(#[from] EncodeError),
+    Io(#[from] std::io::Error),
+    Error(String),
+    S3(#[from] S3Error),
+}
 
 #[derive(Debug)]
 pub enum InteractionError {
@@ -203,6 +237,22 @@ impl From<queue::QueueError> for InteractionError {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn it_works() {}
+    fn it_works() {
+        // add nest in iveerror ta capté
+        fn test() -> Result<(), WorkerError> {
+            fn test() -> Result<(), InvalidInputError> {
+                "salut".parse::<f32>()?;
+                Ok(())
+            }
+            test()?;
+            Ok(())
+        }
+
+        if let Err(err) = test() {
+            println!("{}", err);
+        }
+    }
 }

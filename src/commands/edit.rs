@@ -11,7 +11,7 @@ use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
 use crate::flows;
-use models::{EditError, EncodeError, InteractionError, JobProgress, Video};
+use models::{EditError, InteractionError, JobProgress, Video};
 
 use models::Job;
 use queue::Queue;
@@ -212,11 +212,9 @@ pub async fn run(
                 break
             },
             JobProgress::Progress(_) => todo!(),
-            JobProgress::Error(err) => match err {
-                EncodeError::EncodeToSize(err) => {
+            JobProgress::Error(err) => {
                     println!("Erreur du worker: {:?}", err);
                     return Err(InteractionError::Error);
-                }
             },
         }
     }

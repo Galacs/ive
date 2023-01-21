@@ -61,7 +61,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
 
     match res {
         Err(err) => {
-            let _: () = client.publish(&channel, serde_json::to_string(&JobProgress::Error(err))?)?;
+            let _: () = client.publish(&channel, serde_json::to_string(&JobProgress::Error(format!("{}", err)))?)?;
             return Err(ProcessError::Error)
         },
         Ok(_) => {},

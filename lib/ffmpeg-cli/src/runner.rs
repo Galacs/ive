@@ -1,10 +1,11 @@
 use std::time::Duration;
 
+use models::FfmpegError as Error;
+
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
     SinkExt,
 };
-use thiserror::Error;
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
     net::TcpListener,
@@ -67,32 +68,6 @@ impl Default for Status {
     }
 }
 
-/// Various errors that can occur as it runs.
-#[derive(Error, Debug)]
-pub enum Error {
-    /// Anything threw an [io::Error](std::io::Error).
-    #[error("Io Error: {0}")]
-    IoError(
-        #[source]
-        #[from]
-        std::io::Error,
-    ),
-    /// Ffmpeg gave us data that wasn't actually a `key=value` pair.
-    ///
-    /// Hasn't happened in my testing, but I wouldn't put it past ffmpeg.
-    #[error("Invalid key=value pair: {0}")]
-    KeyValueParseError(String),
-    /// Ffmpeg put out something unexpected for `progress`.
-    #[error("Unknown status: {0}")]
-    UnknownStatusError(String),
-    /// Any other error that can occur while parsing ffmpeg output.
-    ///
-    /// Can only be a float or int parsing error.
-    /// The String is what it was trying to parse.
-    #[error("Parse Error: {0}")]
-    OtherParseError(#[source] Box<dyn std::error::Error + Send>, String),
-}
-
 impl<'a> FfmpegBuilder<'a> {
     /// Spawns a new ffmpeg process and records the output, consuming the builder
     ///
@@ -104,9 +79,19 @@ impl<'a> FfmpegBuilder<'a> {
 
         self = self.option(Parameter::key_value("progress", &prog_url));
         let mut command = self.to_command();
-        let child = command.spawn()?;
+        let mut child = command.spawn()?;
 
-        let conn = listener.accept().await?.0;
+        let conn = listener.accept();
+        let status = child.wait();
+
+        let conn = tokio::select! {
+            conn = conn => {
+                conn?.0
+            }
+            s = status => {
+                return Err(Error::Exit(s?))
+            }
+        };
 
         let (mut tx, rx) = mpsc::unbounded();
 
@@ -117,7 +102,6 @@ impl<'a> FfmpegBuilder<'a> {
             loop {
                 let mut line = String::new();
                 let read = reader.read_line(&mut line).await;
-
                 match read {
                     Ok(n) => {
                         if n == 0 {

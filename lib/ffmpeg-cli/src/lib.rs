@@ -222,8 +222,12 @@ impl<'a> File<'a> {
 impl Parameter {
     fn push_to(&self, command: &mut Command) {
         match &self {
-            Parameter::Single(arg) => command.arg("-".to_owned() + arg),
+            Parameter::Single(arg) => {
+                let arg = arg.as_str();
+                command.arg("-".to_owned() + arg)
+            },
             Parameter::KeyValue(key, value) => {
+                let key = key.as_str();
                 command.arg("-".to_owned() + key);
                 command.arg(value)
             }
