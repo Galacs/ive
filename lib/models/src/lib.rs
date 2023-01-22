@@ -263,8 +263,6 @@ impl From<queue::QueueError> for InteractionError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn it_works() { }
 }

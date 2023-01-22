@@ -4,7 +4,6 @@ use snafu::prelude::*;
 use snafu::Location;
 
 use models::FfmpegError as Error;
-use models::IoSnafu;
 
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
