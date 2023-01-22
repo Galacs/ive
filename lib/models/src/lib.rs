@@ -1,6 +1,7 @@
 use s3::error::S3Error;
 use serde::{Deserialize, Serialize};
 use serenity::prelude::SerenityError;
+use snafu::Snafu;
 use thiserror::Error;
 
 
@@ -148,34 +149,59 @@ pub enum InvalidInputError {
     StringParse(#[from] std::num::ParseFloatError),
 }
 
-/// Various errors that can occur as it runs.
-#[derive(Error, Debug)]
+#[derive(Snafu, Debug)]
+#[snafu(visibility(pub))]
 pub enum FfmpegError {
-    #[error("Io Error: {0}")]
-    IoError(
-        #[source]
-        #[from]
-        std::io::Error,
-    ),
-    #[error("Invalid key=value pair: {0}")]
-    KeyValueParseError(String),
-    #[error("Unknown status: {0}")]
-    UnknownStatusError(String),
-    #[error("Parse Error: {0}")]
-    OtherParseError(#[source] Box<dyn std::error::Error + Send>, String),
-    #[error("Exited: {0}")]
-    Exit(std::process::ExitStatus)
+    FfIo {
+        source: std::io::Error,
+    },
+    KeyValueParse {
+        key: String,
+    },
+    UnknownStatus {
+        status: String,
+    },
+    OtherParse {
+        source: Box<dyn std::error::Error + Send>,
+        msg: String,
+    },
+    Exit{
+        status: std::process::ExitStatus,
+        location: snafu::Location,
+    },
 }
 
-#[derive(Error, Debug)]
-#[error("Worker Error: {0}")]
+#[derive(Snafu, Debug)]
+#[snafu(visibility(pub))]
 pub enum WorkerError {
-    InvalidInput(#[from] InvalidInputError),
-    Ffmpeg(#[from] FfmpegError),
-    EncodeError(#[from] EncodeError),
-    Io(#[from] std::io::Error),
-    Error(String),
-    S3(#[from] S3Error),
+    InvalidInput {
+        source: InvalidInputError,
+        backtrace: snafu::Backtrace,
+        location: snafu::Location,
+    },
+    Ffmpeg {
+        source: FfmpegError,
+        backtrace: snafu::Backtrace,
+        location: snafu::Location,
+    },
+    Encode {
+        source: EncodeError,
+        backtrace: snafu::Backtrace,
+        location: snafu::Location,
+    },
+    Io {
+        source: std::io::Error,
+        backtrace: snafu::Backtrace,
+        location: snafu::Location,
+    },
+    Message {
+        msg: String,
+    },
+    S3 {
+        source:  S3Error,
+        backtrace: snafu::Backtrace,
+        location: snafu::Location,
+    },
 }
 
 #[derive(Debug)]
@@ -240,19 +266,5 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
-        // add nest in iveerror ta capté
-        fn test() -> Result<(), WorkerError> {
-            fn test() -> Result<(), InvalidInputError> {
-                "salut".parse::<f32>()?;
-                Ok(())
-            }
-            test()?;
-            Ok(())
-        }
-
-        if let Err(err) = test() {
-            println!("{}", err);
-        }
-    }
+    fn it_works() { }
 }

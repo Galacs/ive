@@ -1,6 +1,10 @@
 use std::time::Duration;
 
+use snafu::prelude::*;
+use snafu::Location;
+
 use models::FfmpegError as Error;
+use models::IoSnafu;
 
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -73,23 +77,24 @@ impl<'a> FfmpegBuilder<'a> {
     ///
     /// This has to consume the builder for stdin, etc to work
     pub async fn run(mut self) -> Result<Ffmpeg> {
-        let listener = TcpListener::bind("127.0.0.1:0").await?;
-        let port = listener.local_addr()?.port();
+        let listener = TcpListener::bind("127.0.0.1:0").await.context(models::FfIoSnafu)?;
+        let port = listener.local_addr().context(models::FfIoSnafu)?.port();
         let prog_url = format!("tcp://127.0.0.1:{}", port);
 
         self = self.option(Parameter::key_value("progress", &prog_url));
         let mut command = self.to_command();
-        let mut child = command.spawn()?;
+        let mut child = command.spawn().context(models::FfIoSnafu)?;
 
         let conn = listener.accept();
         let status = child.wait();
 
         let conn = tokio::select! {
             conn = conn => {
-                conn?.0
+                conn.context(models::FfIoSnafu)?.0
             }
             s = status => {
-                return Err(Error::Exit(s?))
+                let b = s.unwrap();
+                return Err(Error::Exit { status: b, location: snafu::location!() })
             }
         };
 
@@ -110,7 +115,7 @@ impl<'a> FfmpegBuilder<'a> {
                         }
                     }
                     Err(e) => {
-                        let _ = tx.send(Err(e.into())).await;
+                        let _ = tx.send(Err(e).context(models::FfIoSnafu)).await;
                         tx.close_channel();
                     }
                 }
@@ -157,7 +162,7 @@ impl<'a> FfmpegBuilder<'a> {
                                     // This causes feeding the next thing to error
                                     // However, we don't care
                                     // We just ignore the error
-                                    let _ = tx.feed(Err(Error::UnknownStatusError(x.to_owned())));
+                                    let _ = tx.feed(Err(Error::UnknownStatus { status: x.to_owned() }));
                                     tx.close_channel();
 
                                     // Just give it a status so it compiles
@@ -177,7 +182,7 @@ impl<'a> FfmpegBuilder<'a> {
                         _ => {}
                     }
                 } else {
-                    let _ = tx.send(Err(Error::KeyValueParseError(line)));
+                    let _ = tx.send(Err(Error::KeyValueParse { key: line }));
                     tx.close_channel();
                 }
             }
@@ -211,7 +216,7 @@ async fn handle_parse_error(
 ) {
     // Ignore the error because we're closing the channel anyway
     let _ = tx
-        .send(Err(Error::OtherParseError(Box::new(e), x.to_owned())))
+        .send(Err(Error::OtherParse { source: Box::new(e), msg: x.to_owned() }))
         .await;
     tx.close_channel();
 }

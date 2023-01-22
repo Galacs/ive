@@ -14,3 +14,4 @@ async-trait = { workspace = true }
 rust-s3 = "0.32"
 ffmpeg-cli = { workspace = true }
 futures = "0.3.*"
+snafu = { workspace = true }

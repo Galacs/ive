@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use models::{EncodeParameters, Job, JobProgress, InteractionError};
+use models::{EncodeParameters, Job, JobProgress, InteractionError, WorkerError};
 use queue::Queue;
 use redis::{Client, Commands};
 use tokio::fs;
@@ -62,6 +62,13 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     match res {
         Err(err) => {
             let _: () = client.publish(&channel, serde_json::to_string(&JobProgress::Error(format!("{}", err)))?)?;
+            println!("{}", err);
+            match err {
+                WorkerError::Ffmpeg { source, backtrace, location } => {
+                    dbg!(location);
+                }
+                _ => {}
+            }
             return Err(ProcessError::Error)
         },
         Ok(_) => {},

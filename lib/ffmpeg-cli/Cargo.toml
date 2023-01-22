@@ -10,4 +10,4 @@ tokio = { workspace = true }
 models = { workspace = true }
 futures-core = "0.3.*"
 futures = "0.3.*"
-thiserror = "1.*"
+snafu = { version = "0.7.4", features = [ "std", "backtraces", "futures"] }

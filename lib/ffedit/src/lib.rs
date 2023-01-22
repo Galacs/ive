@@ -1,3 +1,4 @@
+use snafu::ResultExt;
 use std::{process::Stdio, path::{PathBuf, Path}};
 
 use models::*;
@@ -18,14 +19,14 @@ pub trait Run {
 #[async_trait]
 impl Run for FfmpegBuilder<'_> {
     async fn run_and_upload(self, id: &str) -> Result<(), WorkerError> {
-        let ffmpeg = self.run().await?;
+        let ffmpeg = self.run().await.context(models::FfmpegSnafu)?;
         let mut child = ffmpeg.process;
-        let mut stdout =  child.stdout.take().ok_or(WorkerError::Error("no stdout".to_owned()))?;
+        let mut stdout =  child.stdout.take().ok_or(models::WorkerError::Message { msg: "no child stdout".to_owned()})?;
 
         let bucket = config::get_s3_bucket();
         let _res = bucket
             .put_object_stream(&mut stdout, &id)
-            .await?;
+            .await.context(models::S3Snafu)?;
         Ok(())
     }
 }
@@ -58,7 +59,7 @@ pub fn get_working_dir(id: &String) -> Result<PathBuf, std::io::Error> {
 pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> Result<(), WorkerError> {
     let url = match &video.url {
         VideoURI::Url(p) => p,
-        _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI))?,
+        _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI)).context(models::EncodeSnafu)?,
     };
 
     ffmpeg::init().unwrap();
@@ -70,12 +71,12 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     let t_minsize = (audio_rate as f32 * duration) / 8192_f32;
     let size: f32 = params.target_size as f32 / 2_f32.powf(20.0);
     if t_minsize > size {
-        return Err(EncodeError::EncodeToSize(EncodeToSizeError::TargetSizeTooSmall))?;
+        return Err(EncodeError::EncodeToSize(EncodeToSizeError::TargetSizeTooSmall)).context(models::EncodeSnafu)?;
     }
 
     let target_vrate = (size * 8192.0) / (1.048576 * duration) - audio_rate as f32;
 
-    let dir = get_working_dir(&video.id)?;
+    let dir = get_working_dir(&video.id).context(models::IoSnafu)?;
     // dbg!(&dir);
     // tokio::fs::create_dir(&dir).await.unwrap();
 
@@ -86,7 +87,7 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     let audio_rate = format!("{}k", audio_rate);
 
     let a = dir.join(Path::new("pass"));
-    let passfile_prefix = a.to_str().ok_or(WorkerError::Error("passfile str conversion error".to_owned()))?;
+    let passfile_prefix = a.to_str().ok_or(models::WorkerError::Message { msg: "passfile str conversion error".to_owned()})?;
 
     let file = File::new("pipe:1").option(Parameter::key_value("f", "mp4"))
     .option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
@@ -97,7 +98,7 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     .option(Parameter::key_value("passlogfile", passfile_prefix));
     builder.outputs = vec![file];
 
-    builder.run().await?.process.wait().await?;
+    builder.run().await.context(models::FfmpegSnafu)?.process.wait().await.context(models::IoSnafu)?;
  
     let mut builder = FfmpegBuilder::default(url);
 
@@ -145,7 +146,7 @@ pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), WorkerErro
     let mut builder = FfmpegBuilder::default(url);
 
     if let Some(time) = params.start {
-        builder = builder.option(Parameter::key_value("ss", time.to_string()));
+        builder = builder.option(Parameter::key_value("-ss", time.to_string()));
     }
     if let Some(time) = params.end {
         builder = builder.option(Parameter::key_value("to", time.to_string()));

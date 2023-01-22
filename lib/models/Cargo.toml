@@ -11,4 +11,5 @@ serde_json = { workspace = true }
 serenity = { workspace = true }
 redis = { workspace = true }
 rust-s3 = { workspace = true }
-thiserror = { workspace = true }
+snafu = { workspace = true }
+thiserror = { workspace = true}
