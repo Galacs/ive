@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use models::{EncodeParameters, Job, JobProgress, InteractionError};
+use models::{JobParameters, Job, JobProgress, InteractionError, JobResponse};
 use queue::Queue;
 use redis::{Client, Commands};
 use tokio::fs;
@@ -41,12 +41,17 @@ impl From<InteractionError> for ProcessError {
 async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> {
     let video = job.video.ok_or(ProcessError::NoVideo)?;
 
-    // Define working directory and destination filepath
-    let dir = Path::new("tmpfs").join(format!("{}", &video.id));
-    let dir = std::env::current_dir()?.join(dir);
-
-    // Creating working directory
-    fs::create_dir(&dir).await?;
+    match job.kind {
+        models::JobKind::Parsing => {},
+        models::JobKind::Processing => {
+            // Define working directory and destination filepath
+            let dir = Path::new("tmpfs").join(format!("{}", &video.id));
+            let dir = std::env::current_dir()?.join(dir);
+    
+            // Creating working directory
+            fs::create_dir(&dir).await?;
+        }
+    }
 
     let channel = format!("progress:{}", video.id);
 
@@ -54,9 +59,15 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     let _: () = client.publish(&channel, str)?;
 
     let res = match &job.params {
-        EncodeParameters::EncodeToSize(p) => ffedit::encode_to_size(&video, p).await,
-        EncodeParameters::Cut(p) => ffedit::cut(&video, p).await,
-        EncodeParameters::Remux(p) => ffedit::remux(&video, p).await,
+        JobParameters::EncodeToSize(p) => ffedit::encode_to_size(&video, p).await,
+        JobParameters::Cut(p) => ffedit::cut(&video, p).await,
+        JobParameters::Remux(p) => ffedit::remux(&video, p).await,
+        JobParameters::GetStreams => {
+            if let Ok(res) = ffedit::get_streams(&video).await {
+                let _: () = client.publish(&channel,serde_json::to_string(&JobProgress::Response(JobResponse::GetStreams(res)))?)?;
+            };
+            return Ok(());
+        },
     };
 
     match res {
@@ -72,7 +83,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     tokio::fs::remove_dir_all(dir).await?;
 
     let file_extension = match job.params {
-        EncodeParameters::Remux(container) => container.container.get_file_extension(),
+        JobParameters::Remux(container) => container.container.get_file_extension(),
         _ => "mp4".to_owned(),
     };
 
