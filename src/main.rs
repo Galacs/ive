@@ -73,7 +73,7 @@ async fn main() {
     let token = env::var("IVE_DISCORD_TOKEN").expect("Expected a token in the environment");
 
     // Build our client.
-    let mut client = Client::builder(token, GatewayIntents::empty())
+    let mut client = Client::builder(token, GatewayIntents::GUILD_MESSAGES)
         .event_handler(Handler)
         .await
         .expect("Error creating client");
