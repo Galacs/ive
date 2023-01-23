@@ -65,22 +65,39 @@ async fn get_streams(attachment: &Attachment, id: &str, cmd: &ApplicationCommand
     }
 }
 
-async fn update_msg(attachment: &Attachment, cmd: &ApplicationCommandInteraction, ctx: &Context, streams: &HashMap::<i32, MediaStream>, selected_streams: &HashSet<i32>) -> Result<(), InteractionError> {
+async fn update_msg(attachment: &Attachment, cmd: &ApplicationCommandInteraction, ctx: &Context, streams: &HashMap::<i32, MediaStream>, selected_streams: &HashMap<i32, bool>) -> Result<(), InteractionError> {
+    fn get_name(stream: &MediaStream) -> &str{
+        match stream.kind {
+            models::StreamKind::Video => "Video",
+            models::StreamKind::Audio => "Audio",
+            models::StreamKind::Unknown => "toz",
+        }
+    }
     cmd.edit_original_interaction_response(&ctx.http, |m| {
+        let mut streams_str = String::new();
+        for (id, stream) in streams {
+            let status = match selected_streams.get(id) {
+                Some(s) => match s {
+                    true => "gardé",
+                    false => "retiré",
+                },
+                None => "pas encore choisi",
+            };
+            let name = get_name(stream);
+            streams_str.push_str(&format!("{}: {}\n", name, status))
+        }
         m.content(format!(
-            "Vers quel format convertir **{}** ?",
+            "**{}**:\n\
+            {}",
+            streams_str,
             attachment.filename
         ));
         m.components(|comps| {
             for (id, stream) in streams {
-                if selected_streams.contains(id) {
+                if selected_streams.contains_key(id) {
                     continue;
                 }
-                let name = match stream.kind {
-                    models::StreamKind::Video => "Video",
-                    models::StreamKind::Audio => "Audio",
-                    models::StreamKind::Unknown => "toz",
-                };
+                let name = get_name(stream);
                 comps.create_action_row(|row| {
                     row.create_select_menu(|m| {
                         m.custom_id(id);
@@ -125,8 +142,8 @@ pub async fn get_info(
     let streams = get_streams(&sender_message.attachments[0], "crienclarue", &cmd, &ctx).await?;
     dbg!(&streams);
 
-    let mut selected_streams = HashSet::new(); // Change to hashmap to store user inupt
 
+    let mut selected_streams = HashMap::new(); // Change to hashmap to store user inupt
     for _ in 0..streams.len()+1 {
         if let Err(err) = update_msg(&sender_message.attachments[0], &cmd, &ctx, &streams, &selected_streams).await {
             println!("Erreur de mise a jour: {:?}", err);
@@ -134,21 +151,48 @@ pub async fn get_info(
     
         // Await edit apply choice (with timeout)
         let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
-        let Some(interaction) = interaction_reponse
-            .await_component_interaction(&ctx)
-            .timeout(Duration::from_secs(60 * 3))
-            .await else {
-            cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
-            return Err(InteractionError::Timeout);
+
+        let interaction_id = cmd.id;
+
+        dbg!(&interaction_id);
+
+        tokio::select! {
+            i = interaction_reponse.await_component_interaction(&ctx).timeout(Duration::from_secs(60 * 3)) => {
+                let interaction = i.unwrap();
+                if let Err(e) = interaction.defer(&ctx.http).await {
+                    println!("{e}");
+                }
+                let int: i32 = interaction.data.custom_id.parse().unwrap();
+                let choice  = match interaction.data.values[0].as_str() {
+                    "keep" => true,
+                    "exlude" => false,
+                    _ => false,
+                };
+                selected_streams.insert(int, choice);
+                dbg!(&selected_streams);
+            },
+            msg = cmd.user.await_reply(&ctx).filter(move |x| {
+                dbg!(x.referenced_message.as_ref().unwrap().interaction.as_ref().unwrap().id);
+                x.referenced_message.as_ref().unwrap().interaction.as_ref().unwrap().id == interaction_id
+            }) => {
+                println!("adding video...");
+                println!("{}", msg.unwrap().content);
+            }
         };
-    
-        if let Err(e) = interaction.defer(&ctx.http).await {
-            println!("{e}");
-        }
-    
-        let int: i32 = interaction.data.custom_id.parse().unwrap();
-        selected_streams.insert(int);
+
+        // let Some(interaction) = interaction_reponse
+        //     .await_component_interaction(&ctx)
+        //     .timeout(Duration::from_secs(60 * 3))
+        //     .await else {
+        //     cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
+        //     return Err(InteractionError::Timeout);
+        // };
+
+
     }
+
+    let a = cmd.get_message()?.author.await_replies(&ctx).build().next().await;
+    dbg!(a);
 
 
     panic!();
