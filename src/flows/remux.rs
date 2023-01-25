@@ -11,7 +11,7 @@ use serenity::{
 };
 
 use models::{
-    EncodeParameters, InteractionError, InvalidInputError,
+    JobParameters, InteractionError, InvalidInputError,
     RemuxParameters, VideoContainer,
 };
 
@@ -21,7 +21,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context
-) -> Result<EncodeParameters, InteractionError> {
+) -> Result<JobParameters, InteractionError> {
     // Create interaction response asking what edit to apply
     interaction_reponse.defer(&ctx.http).await?;
 
@@ -67,5 +67,5 @@ pub async fn get_info(
         }
     };
 
-    Ok(EncodeParameters::Remux(RemuxParameters { container }))
+    Ok(JobParameters::Remux(RemuxParameters { container }))
 }

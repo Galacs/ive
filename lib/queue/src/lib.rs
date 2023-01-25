@@ -38,11 +38,11 @@ mod tests {
     async fn it_works() {
         let client = redis::Client::open("redis://192.168.0.58/").unwrap();
         let mut con = client.get_async_connection().await.unwrap();
-        let job = Job::new(JobKind::EncodeToSize, Some(Video {
+        let job = Job::new(JobKind::Processing, Some(Video {
             url: VideoURI::Url("https://cdn.discordapp.com/attachments/685197521953488994/1046181272319438969/edit-edit-edit-edit-edit-edit-edit-edit-edit-edit-out.mp4".to_string()),
             id: "sgfdvgsfsgvfsgvvd".to_owned(),
             filename: "toz.mp4".to_owned(),
-        }), EncodeParameters::EncodeToSize(EncodeToSizeParameters {
+        }), JobParameters::EncodeToSize(EncodeToSizeParameters {
             target_size: 7 * 2_u32.pow(20),
         }));
 

@@ -1,5 +1,5 @@
 use snafu::ResultExt;
-use std::{process::Stdio, path::{PathBuf, Path}};
+use std::{process::Stdio, path::{PathBuf, Path}, collections::HashMap};
 
 use models::*;
 
@@ -48,6 +48,29 @@ impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
         }
     }
 
+}
+
+pub async fn get_streams(video: &Video) -> Result<Vec::<MediaStream>, WorkerError> {
+    let url = match &video.url {
+        VideoURI::Url(p) => p,
+        _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI)).context(models::EncodeSnafu)?,
+    };
+    ffmpeg::init().unwrap();
+    let input = ffmpeg::format::input(url).unwrap();
+
+    Ok(input.streams().into_iter().map(|stream| {
+        let codec = ffmpeg::codec::context::Context::from_parameters(stream.parameters()).unwrap();
+        let duration = input.duration();
+        MediaStream {
+            id: stream.id(),
+            kind: match codec.medium() {
+                ffmpeg::media::Type::Audio => StreamKind::Audio,
+                ffmpeg::media::Type::Video => StreamKind::Video,
+                _ => StreamKind::Unknown,
+            },
+            duration,
+        }
+    }).collect())
 }
 
 pub fn get_working_dir(id: &String) -> Result<PathBuf, std::io::Error> {
@@ -281,16 +304,18 @@ mod tests {
             Some("dfkgjsdpfmkgj.mp4".to_owned()),
             "toz123".to_owned(),
         );
+        
+        dbg!(get_streams(&video).await);
 
-        cut(
-            &video,
-            &CutParameters {
-                start: Some(2),
-                end: None,
-            },
-        )
-        .await
-        .unwrap();
+        // cut(
+        //     &video,
+        //     &CutParameters {
+        //         start: Some(2),
+        //         end: None,
+        //     },
+        // )
+        // .await
+        // .unwrap();
         assert_ne!(0, 0);
     }
 }

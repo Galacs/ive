@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use s3::error::S3Error;
 use serde::{Deserialize, Serialize};
 use serenity::prelude::SerenityError;
@@ -20,10 +22,16 @@ pub enum EncodeError {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum JobResponse {
+    GetStreams(Vec::<MediaStream>)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum JobProgress {
     Started,
     Progress(f32),
     Error(String),
+    Response(JobResponse),
     Done(String),
 }
 
@@ -42,6 +50,18 @@ pub struct CutParameters {
 pub struct RemuxParameters {
     pub container: VideoContainer,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CombineVideo {
+    pub url: String,
+    pub selected_streams: Vec<i32>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CombineParameters {
+    pub videos: Vec<CombineVideo>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum VideoContainer {
     MP3, 
@@ -66,26 +86,29 @@ pub struct Video {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum JobKind {
-    EncodeToSize,
+    Processing,
+    Parsing,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 
-pub enum EncodeParameters {
+pub enum JobParameters {
     EncodeToSize(EncodeToSizeParameters),
     Cut(CutParameters),
     Remux(RemuxParameters),
+    GetStreams,
+    Combine(CombineParameters),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Job {
     pub kind: JobKind,
     pub video: Option<Video>,
-    pub params: EncodeParameters,
+    pub params: JobParameters,
 }
 
 impl Job {
-    pub fn new(kind: JobKind, video: Option<Video>, params: EncodeParameters) -> Self {
+    pub fn new(kind: JobKind, video: Option<Video>, params: JobParameters) -> Self {
         Job { kind, video, params }
     }
 }
@@ -259,6 +282,20 @@ impl From<queue::QueueError> for InteractionError {
     fn from(error: queue::QueueError) -> Self {
         InteractionError::Queue(error)
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum StreamKind {
+    Video,
+    Audio,
+    Unknown,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MediaStream {
+    pub id: i32,
+    pub kind: StreamKind,
+    pub duration: i64,
 }
 
 #[cfg(test)]

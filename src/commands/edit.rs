@@ -112,6 +112,10 @@ pub async fn run(
                                 f.create_option(|o| {
                                     o.label("Changer le container (Preview)")
                                         .value("remux")
+                                });
+                                f.create_option(|o| {
+                                    o.label("Combiner des medias (Preview)")
+                                        .value("combine")
                                 })
                             })
                         })
@@ -140,6 +144,7 @@ pub async fn run(
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &interaction_reponse, &ctx).await,
         "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx).await,
         "remux" => flows::remux::get_info(&cmd, &interaction_reponse, &ctx).await,
+        "combine" => flows::combine::get_info(&cmd, &interaction_reponse, &ctx).await,
         _ => {
             return Err(InteractionError::InvalidInput(
                 models::InvalidInputError::Error,
@@ -180,7 +185,7 @@ pub async fn run(
         Some(id.to_owned()),
         attachment.filename.to_owned(),
     );
-    let job = Job::new(models::JobKind::EncodeToSize, Some(video), params);
+    let job = Job::new(models::JobKind::Processing, Some(video), params);
 
     // Send job to redis queue
     job.send_job(&mut con).await?;
@@ -216,6 +221,7 @@ pub async fn run(
                     println!("Erreur du worker: {:?}", err);
                     return Err(InteractionError::Error);
             },
+            JobProgress::Response(_) => todo!(),
         }
     }
 

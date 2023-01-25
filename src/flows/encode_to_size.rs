@@ -8,7 +8,7 @@ use serenity::{
     prelude::Context,
 };
 
-use models::{EncodeParameters, EncodeToSizeParameters, InteractionError};
+use models::{JobParameters, EncodeToSizeParameters, InteractionError};
 
 use crate::commands::edit::{EditMessage, GetMessage};
 
@@ -16,7 +16,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context
-) -> Result<EncodeParameters, InteractionError> {
+) -> Result<JobParameters, InteractionError> {
     let message = cmd.get_message()?;
     // Display modal asking for target size
     interaction_reponse.create_interaction_response(&ctx.http, |response| {
@@ -79,7 +79,7 @@ pub async fn get_info(
                 cmd.edit(&ctx.http, &format!("**{}** ne pourra pas être envoyé car {}Mo > 8Mo (limite de discord)", message.attachments[0].filename, t)).await?;
                 Err(InteractionError::InvalidInput(models::InvalidInputError::Error))
             } else {
-                Ok(EncodeParameters::EncodeToSize(EncodeToSizeParameters {
+                Ok(JobParameters::EncodeToSize(EncodeToSizeParameters {
                     target_size: (t * 2_f32.powf(20.0)) as u32,
                 }))
             }
