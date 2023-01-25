@@ -50,30 +50,27 @@ impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
 
 }
 
-pub async fn get_streams(video: &Video) -> Result<HashMap::<i32, MediaStream>, WorkerError> {
+pub async fn get_streams(video: &Video) -> Result<Vec::<MediaStream>, WorkerError> {
     let url = match &video.url {
         VideoURI::Url(p) => p,
         _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI)).context(models::EncodeSnafu)?,
     };
-
     ffmpeg::init().unwrap();
     let input = ffmpeg::format::input(url).unwrap();
 
-    let mut hashmap = HashMap::new();
-    input.streams().for_each(|stream| {
+    Ok(input.streams().into_iter().map(|stream| {
         let codec = ffmpeg::codec::context::Context::from_parameters(stream.parameters()).unwrap();
         let duration = input.duration();
-        let a = MediaStream {
+        MediaStream {
+            id: stream.id(),
             kind: match codec.medium() {
                 ffmpeg::media::Type::Audio => StreamKind::Audio,
                 ffmpeg::media::Type::Video => StreamKind::Video,
                 _ => StreamKind::Unknown,
             },
             duration,
-        };
-        hashmap.insert(stream.id(), a);
-    });
-    Ok(hashmap)
+        }
+    }).collect())
 }
 
 pub fn get_working_dir(id: &String) -> Result<PathBuf, std::io::Error> {

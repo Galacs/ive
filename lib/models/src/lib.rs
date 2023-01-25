@@ -23,7 +23,7 @@ pub enum EncodeError {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum JobResponse {
-    GetStreams(HashMap::<i32, MediaStream>)
+    GetStreams(Vec::<MediaStream>)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,6 +50,18 @@ pub struct CutParameters {
 pub struct RemuxParameters {
     pub container: VideoContainer,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CombineVideo {
+    pub url: String,
+    pub selected_streams: Vec<i32>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CombineParameters {
+    pub videos: Vec<CombineVideo>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum VideoContainer {
     MP3, 
@@ -85,6 +97,7 @@ pub enum JobParameters {
     Cut(CutParameters),
     Remux(RemuxParameters),
     GetStreams,
+    Combine(CombineParameters),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -280,6 +293,7 @@ pub enum StreamKind {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MediaStream {
+    pub id: i32,
     pub kind: StreamKind,
     pub duration: i64,
 }

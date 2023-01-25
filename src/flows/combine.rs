@@ -1,4 +1,9 @@
-use std::{time::Duration, collections::{HashMap, HashSet}};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
+
+use uuid::Uuid;
 
 use queue::Queue;
 use serenity::{
@@ -7,20 +12,25 @@ use serenity::{
         interaction::{
             application_command::ApplicationCommandInteraction,
             message_component::MessageComponentInteraction,
-        }, Attachment,
+        },
+        Attachment,
     },
     prelude::Context,
 };
 
 use models::{
-    JobParameters, InteractionError, InvalidInputError,
-    RemuxParameters, VideoContainer, MediaStream, Job, Video, JobProgress,
+    CombineParameters, CombineVideo, InteractionError, InvalidInputError, Job, JobParameters,
+    JobProgress, MediaStream, RemuxParameters, Video, VideoContainer,
 };
 
 use crate::commands::edit::{EditMessage, GetMessage};
 
-async fn get_streams(attachment: &Attachment, id: &str, cmd: &ApplicationCommandInteraction, ctx: &Context, ) -> Result<HashMap::<i32, MediaStream>, InteractionError> {
-
+async fn get_streams(
+    attachment: &Attachment,
+    id: &str,
+    cmd: &ApplicationCommandInteraction,
+    ctx: &Context,
+) -> Result<Vec<MediaStream>, InteractionError> {
     let client = config::get_redis_client();
     let mut con = client.get_async_connection().await?;
 
@@ -30,7 +40,11 @@ async fn get_streams(attachment: &Attachment, id: &str, cmd: &ApplicationCommand
         Some(id.to_owned()),
         attachment.filename.to_owned(),
     );
-    let job = Job::new(models::JobKind::Parsing, Some(video), JobParameters::GetStreams);
+    let job = Job::new(
+        models::JobKind::Parsing,
+        Some(video),
+        JobParameters::GetStreams,
+    );
 
     // Send job to redis queue
     job.send_job(&mut con).await?;
@@ -40,7 +54,7 @@ async fn get_streams(attachment: &Attachment, id: &str, cmd: &ApplicationCommand
     let channel = format!("progress:{}", id);
     pubsub.subscribe(&channel).await?;
     let mut msg_stream = pubsub.into_on_message();
-    
+
     // Wait for reponse
     loop {
         let payload: String = msg_stream
@@ -51,12 +65,16 @@ async fn get_streams(attachment: &Attachment, id: &str, cmd: &ApplicationCommand
         let progress: JobProgress = serde_json::from_str(&payload.as_str())?;
         match progress {
             JobProgress::Started => {
-                cmd.edit(&ctx.http, &format!("Analyse de **{}**...", attachment.filename)).await?;
+                cmd.edit(
+                    &ctx.http,
+                    &format!("Analyse de **{}**...", attachment.filename),
+                )
+                .await?;
             }
             JobProgress::Error(err) => {
-                    println!("Erreur du worker: {:?}", err);
-                    return Err(InteractionError::Error);
-            },
+                println!("Erreur du worker: {:?}", err);
+                return Err(InteractionError::Error);
+            }
             JobProgress::Response(res) => match res {
                 models::JobResponse::GetStreams(res) => return Ok(res),
             },
@@ -65,8 +83,13 @@ async fn get_streams(attachment: &Attachment, id: &str, cmd: &ApplicationCommand
     }
 }
 
-async fn update_msg(attachment: &Attachment, cmd: &ApplicationCommandInteraction, ctx: &Context, streams: &HashMap::<i32, MediaStream>, selected_streams: &HashMap<i32, bool>) -> Result<(), InteractionError> {
-    fn get_name(stream: &MediaStream) -> &str{
+async fn update_msg(
+    attachment: &Attachment,
+    cmd: &ApplicationCommandInteraction,
+    ctx: &Context,
+    streams: &Vec<StreamState>,
+) -> Result<(), InteractionError> {
+    fn get_name(stream: &MediaStream) -> &str {
         match stream.kind {
             models::StreamKind::Video => "Video",
             models::StreamKind::Audio => "Audio",
@@ -75,138 +98,161 @@ async fn update_msg(attachment: &Attachment, cmd: &ApplicationCommandInteraction
     }
     cmd.edit_original_interaction_response(&ctx.http, |m| {
         let mut streams_str = String::new();
-        for (id, stream) in streams {
-            let status = match selected_streams.get(id) {
+        for stream in streams {
+            let status = match stream.is_kept {
                 Some(s) => match s {
                     true => "gardé",
                     false => "retiré",
                 },
                 None => "pas encore choisi",
             };
-            let name = get_name(stream);
-            streams_str.push_str(&format!("{}: {}\n", name, status))
+            let name = get_name(&stream.stream);
+            streams_str.push_str(&format!(
+                "{}: {}\n",
+                format!("{} {}", name, stream.filename),
+                status
+            ))
         }
-        m.content(format!(
-            "**{}**:\n\
-            {}",
-            streams_str,
-            attachment.filename
-        ));
+        m.content(streams_str);
         m.components(|comps| {
-            for (id, stream) in streams {
-                if selected_streams.contains_key(id) {
+            for stream in streams {
+                if stream.is_selected {
                     continue;
                 }
-                let name = get_name(stream);
+                let name = get_name(&stream.stream);
                 comps.create_action_row(|row| {
                     row.create_select_menu(|m| {
-                        m.custom_id(id);
-                        m.placeholder(name);
+                        m.custom_id(stream.uuid);
+                        m.placeholder(format!("{} {}", name, stream.filename));
                         m.options(|f| {
                             f.create_option(|o| {
                                 o.label("Garder dans le media final").value("keep")
                             });
-                            f.create_option(|o| {
-                                o.label("Retirer du media final").value("exlude")
-                            })
+                            f.create_option(|o| o.label("Retirer du media final").value("exlude"))
                         })
-                        
                     })
                 });
             }
+            if streams.iter().all(|x| x.is_selected) {
+                comps.create_action_row(|r| {
+                    r.create_button(|b| {
+                        b.custom_id("confirm");
+                        b.label("Feur")
+                    })
+                });
+            }
+
             comps
         })
-    }).await?;
+    })
+    .await?;
     Ok(())
 }
 
+#[derive(Debug)]
+struct StreamState {
+    uuid: Uuid,
+    filename: String,
+    url: String,
+    stream: MediaStream,
+    is_selected: bool,
+    is_kept: Option<bool>,
+}
 
 pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
-    ctx: &Context
+    ctx: &Context,
 ) -> Result<JobParameters, InteractionError> {
-    
     // Create interaction response asking what edit to apply
     interaction_reponse.defer(&ctx.http).await?;
 
     let sender_message = cmd.get_message()?;
 
     cmd.edit_original_interaction_response(&ctx.http, |m| {
-        m.content(format!("**{}** en attente...",
+        m.content(format!(
+            "**{}** en attente...",
             sender_message.attachments[0].filename
         ));
         m.components(|c| c)
-    }).await?;
+    })
+    .await?;
 
-    let streams = get_streams(&sender_message.attachments[0], "crienclarue", &cmd, &ctx).await?;
-    dbg!(&streams);
+    let mut streams: Vec<StreamState> =
+        get_streams(&sender_message.attachments[0], "crienclarue", &cmd, &ctx)
+            .await?
+            .into_iter()
+            .map(|x| StreamState {
+                uuid: Uuid::new_v4(),
+                filename: sender_message.attachments[0].filename.to_owned(),
+                stream: x,
+                is_selected: false,
+                is_kept: None,
+                url: sender_message.attachments[0].url.to_owned(),
+            })
+            .collect();
 
-
-    let mut selected_streams = HashMap::new(); // Change to hashmap to store user inupt
-    for _ in 0..streams.len()+1 {
-        if let Err(err) = update_msg(&sender_message.attachments[0], &cmd, &ctx, &streams, &selected_streams).await {
+    loop {
+        if let Err(err) = update_msg(&sender_message.attachments[0], &cmd, &ctx, &streams).await {
             println!("Erreur de mise a jour: {:?}", err);
         }
-    
+
         // Await edit apply choice (with timeout)
         let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
-
         let interaction_id = cmd.id;
-
-        dbg!(&interaction_id);
-
+    
         tokio::select! {
             i = interaction_reponse.await_component_interaction(&ctx).timeout(Duration::from_secs(60 * 3)) => {
                 let interaction = i.unwrap();
                 if let Err(e) = interaction.defer(&ctx.http).await {
                     println!("{e}");
                 }
-                let int: i32 = interaction.data.custom_id.parse().unwrap();
+
+                if interaction.data.custom_id == "confirm" {
+                    break;
+                }
+
+                let uuid: Uuid = interaction.data.custom_id.parse().unwrap();
                 let choice  = match interaction.data.values[0].as_str() {
                     "keep" => true,
                     "exlude" => false,
                     _ => false,
                 };
-                selected_streams.insert(int, choice);
-                dbg!(&selected_streams);
+                let index = streams.iter().position(|x| x.uuid == uuid).unwrap();
+                let s = streams.get_mut(index).unwrap();
+                s.is_selected = true;
+                s.is_kept = Some(choice);
             },
             msg = cmd.user.await_reply(&ctx).filter(move |x| {
-                dbg!(x.referenced_message.as_ref().unwrap().interaction.as_ref().unwrap().id);
                 x.referenced_message.as_ref().unwrap().interaction.as_ref().unwrap().id == interaction_id
             }) => {
-                println!("adding video...");
-                println!("{}", msg.unwrap().content);
+                let s: Vec<StreamState> = get_streams(&msg.as_ref().unwrap().attachments[0], "crienclarue", &cmd, &ctx).await?.into_iter().map(|x| StreamState { uuid: Uuid::new_v4(), filename: sender_message.attachments[0].filename.to_owned(), stream: x, is_selected: false, is_kept: None, url: msg.as_ref().unwrap().attachments[0].url.to_owned() }).collect();
+                streams.extend(s);
             }
         };
-
-        // let Some(interaction) = interaction_reponse
-        //     .await_component_interaction(&ctx)
-        //     .timeout(Duration::from_secs(60 * 3))
-        //     .await else {
-        //     cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
-        //     return Err(InteractionError::Timeout);
-        // };
-
-
     }
 
-    let a = cmd.get_message()?.author.await_replies(&ctx).build().next().await;
-    dbg!(a);
+    let mut hashmap: HashMap<String, CombineVideo> = HashMap::new();
 
+    streams
+        .into_iter()
+        .filter(|x| x.is_kept.unwrap())
+        .for_each(|x| {
+            if !hashmap.contains_key(&x.url) {
+                hashmap.insert(
+                    x.url.to_owned(),
+                    CombineVideo {
+                        url: x.url.to_owned(),
+                        selected_streams: Vec::new(),
+                    },
+                );
+            }
+            hashmap.get_mut(&x.url)
+                .unwrap()
+                .selected_streams
+                .push(x.stream.id);
+        });
 
-    panic!();
-
-    // // Get edit kind from awaited interaction
-    // let container = match interaction.data.values[0].as_str() {
-    //     "mp4" => VideoContainer::MP4,
-    //     "mkv" => VideoContainer::MKV,
-    //     _ => {
-    //         return Err(models::InteractionError::InvalidInput(
-    //             InvalidInputError::Error,
-    //         ))
-    //     }
-    // };
-
-    // Ok(JobParameters::Remux(RemuxParameters { container }))
+    let videos: Vec<CombineVideo> = hashmap.into_iter().map(|x| x.1).collect();
+    Ok(JobParameters::Combine(CombineParameters { videos }))
 }
