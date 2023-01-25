@@ -62,6 +62,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
         JobParameters::EncodeToSize(p) => ffedit::encode_to_size(&video, p).await,
         JobParameters::Cut(p) => ffedit::cut(&video, p).await,
         JobParameters::Remux(p) => ffedit::remux(&video, p).await,
+        JobParameters::Combine(p) => ffedit::combine(&video, p).await,
         JobParameters::GetStreams => {
             if let Ok(res) = ffedit::get_streams(&video).await {
                 let _: () = client.publish(&channel,serde_json::to_string(&JobProgress::Response(JobResponse::GetStreams(res)))?)?;
