@@ -54,7 +54,7 @@ pub struct RemuxParameters {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CombineVideo {
     pub url: String,
-    pub selected_streams: Vec<i32>,
+    pub selected_streams: Vec<usize>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -293,7 +293,7 @@ pub enum StreamKind {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MediaStream {
-    pub id: i32,
+    pub id: usize,
     pub kind: StreamKind,
     pub duration: i64,
 }

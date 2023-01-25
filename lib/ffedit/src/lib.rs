@@ -62,7 +62,7 @@ pub async fn get_streams(video: &Video) -> Result<Vec::<MediaStream>, WorkerErro
         let codec = ffmpeg::codec::context::Context::from_parameters(stream.parameters()).unwrap();
         let duration = input.duration();
         MediaStream {
-            id: stream.id(),
+            id: stream.index(),
             kind: match codec.medium() {
                 ffmpeg::media::Type::Audio => StreamKind::Audio,
                 ffmpeg::media::Type::Video => StreamKind::Video,
@@ -135,6 +135,24 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     .option(Parameter::key_value("passlogfile", passfile_prefix));
     builder.outputs = vec![file];
 
+    builder.run_and_upload(&video.id).await?;
+    Ok(())
+}
+
+pub async fn combine(video: &Video, params: &CombineParameters) -> Result<(), WorkerError> {
+    let url = match &video.url {
+        VideoURI::Path(p) => p,
+        VideoURI::Url(u) => u,
+    };
+    let mut builder = FfmpegBuilder::default(url);
+    builder.inputs.clear();
+
+    for (i, v) in params.videos.iter().enumerate() {
+        builder = builder.input(File::new(&v.url));
+        for s in v.selected_streams.iter() {
+            builder.outputs.first_mut().ok_or(WorkerError::Message { msg: "outputs vec empty".to_owned()})?.options.push(Parameter::key_value("map", format!("{i}:{s}")));
+        }
+    }
     builder.run_and_upload(&video.id).await?;
     Ok(())
 }

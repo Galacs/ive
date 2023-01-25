@@ -226,7 +226,7 @@ pub async fn get_info(
             msg = cmd.user.await_reply(&ctx).filter(move |x| {
                 x.referenced_message.as_ref().unwrap().interaction.as_ref().unwrap().id == interaction_id
             }) => {
-                let s: Vec<StreamState> = get_streams(&msg.as_ref().unwrap().attachments[0], "crienclarue", &cmd, &ctx).await?.into_iter().map(|x| StreamState { uuid: Uuid::new_v4(), filename: sender_message.attachments[0].filename.to_owned(), stream: x, is_selected: false, is_kept: None, url: msg.as_ref().unwrap().attachments[0].url.to_owned() }).collect();
+                let s: Vec<StreamState> = get_streams(&msg.as_ref().unwrap().attachments[0], "crienclarue", &cmd, &ctx).await?.into_iter().map(|x| StreamState { uuid: Uuid::new_v4(), filename: msg.as_ref().unwrap().attachments[0].filename.to_owned(), stream: x, is_selected: false, is_kept: None, url: msg.as_ref().unwrap().attachments[0].url.to_owned() }).collect();
                 streams.extend(s);
             }
         };
