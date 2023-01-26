@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use models::{JobParameters, Job, JobProgress, InteractionError, JobResponse};
+use models::{JobParameters, Job, JobProgress, InteractionError, JobResponse, StreamKind};
 use queue::Queue;
 use redis::{Client, Commands};
 use tokio::fs;
@@ -85,6 +85,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
 
     let file_extension = match job.params {
         JobParameters::Remux(container) => container.container.get_file_extension(),
+        JobParameters::Combine(kind) => if let StreamKind::Audio = kind.output_kind { "mp3".to_owned() } else { "mp4".to_owned() },
         _ => "mp4".to_owned(),
     };
 

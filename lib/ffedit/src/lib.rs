@@ -32,6 +32,7 @@ impl Run for FfmpegBuilder<'_> {
 }
 pub trait FfmpegBuilderDefault<'a> {
     fn default(url: &str) -> FfmpegBuilder;
+    fn default_audio(url: &str) -> FfmpegBuilder;
 }
 
 impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
@@ -47,7 +48,14 @@ impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
             stderr: Stdio::inherit(),
         }
     }
-
+    fn default_audio(url: &str) -> FfmpegBuilder {
+        let base = FfmpegBuilder::default(url);
+        FfmpegBuilder {
+            outputs: vec![File::new("pipe:1").option(Parameter::key_value("f", "mp3")).option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
+                .option(Parameter::key_value("c:a", "libmp3lame"))], 
+            ..base
+        }
+    }
 }
 
 pub async fn get_streams(video: &Video) -> Result<Vec::<MediaStream>, WorkerError> {
@@ -140,11 +148,16 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
 }
 
 pub async fn combine(video: &Video, params: &CombineParameters) -> Result<(), WorkerError> {
+    dbg!(&params.output_kind);
     let url = match &video.url {
         VideoURI::Path(p) => p,
         VideoURI::Url(u) => u,
     };
-    let mut builder = FfmpegBuilder::default(url);
+    let mut builder = match &params.output_kind {
+        StreamKind::Video => FfmpegBuilder::default(url),
+        StreamKind::Audio => FfmpegBuilder::default_audio(url),
+        StreamKind::Unknown => todo!(),
+    };
     builder.inputs.clear();
 
     for (i, v) in params.videos.iter().enumerate() {

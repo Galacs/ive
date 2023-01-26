@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    time::Duration,
+    time::Duration, num::NonZeroIsize,
 };
 
 use uuid::Uuid;
@@ -20,7 +20,7 @@ use serenity::{
 
 use models::{
     CombineParameters, CombineVideo, InteractionError, InvalidInputError, Job, JobParameters,
-    JobProgress, MediaStream, RemuxParameters, Video, VideoContainer,
+    JobProgress, MediaStream, RemuxParameters, Video, VideoContainer, StreamKind,
 };
 
 use crate::commands::edit::{EditMessage, GetMessage};
@@ -234,11 +234,22 @@ pub async fn get_info(
 
     let mut hashmap: HashMap<String, CombineVideo> = HashMap::new();
 
+    let mut kind: Option<StreamKind> = None;
+
     streams
         .into_iter()
         .filter(|x| x.is_kept.unwrap())
         .for_each(|x| {
             if !hashmap.contains_key(&x.url) {
+                kind = match (&kind, &x.stream.kind) {
+                    (None, StreamKind::Video) => Some(StreamKind::Video),
+                    (None, StreamKind::Audio) => Some(StreamKind::Audio),
+                    (Some(StreamKind::Video), StreamKind::Video) => Some(StreamKind::Video),
+                    (Some(StreamKind::Video), StreamKind::Audio) => Some(StreamKind::Video),
+                    (Some(StreamKind::Audio), StreamKind::Video) => Some(StreamKind::Video),
+                    (Some(StreamKind::Audio), StreamKind::Audio) => Some(StreamKind::Audio),
+                    _ => None,
+                };
                 hashmap.insert(
                     x.url.to_owned(),
                     CombineVideo {
@@ -254,5 +265,5 @@ pub async fn get_info(
         });
 
     let videos: Vec<CombineVideo> = hashmap.into_iter().map(|x| x.1).collect();
-    Ok(JobParameters::Combine(CombineParameters { videos }))
+    Ok(JobParameters::Combine(CombineParameters { videos, output_kind: kind.ok_or(InteractionError::Error)? }))
 }

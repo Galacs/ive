@@ -60,6 +60,7 @@ pub struct CombineVideo {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CombineParameters {
     pub videos: Vec<CombineVideo>,
+    pub output_kind: StreamKind,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
