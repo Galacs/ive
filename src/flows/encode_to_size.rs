@@ -75,8 +75,8 @@ pub async fn get_info(
             Err(InteractionError::InvalidInput(models::InvalidInputError::StringParse(err)))
         },
         Ok(t) => {
-            if t > 15.0 {
-                cmd.edit(&ctx.http, &format!("**{}** ne pourra pas être envoyé car {}Mo > 8Mo (limite de discord)", message.attachments[0].filename, t)).await?;
+            if t > 45.0 {
+                cmd.edit(&ctx.http, &format!("**{}** ne pourra pas être envoyé car {}Mo > 25Mo (limite de discord)", message.attachments[0].filename, t)).await?;
                 Err(InteractionError::InvalidInput(models::InvalidInputError::Error))
             } else {
                 Ok(JobParameters::EncodeToSize(EncodeToSizeParameters {

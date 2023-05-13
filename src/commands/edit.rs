@@ -168,9 +168,6 @@ pub async fn run(
     //     Ok(p) => p,
     // };
 
-    // Notify file download
-    cmd.edit(&ctx.http, &format!("Telechargement de **{}**...",  message.attachments[0].filename)).await?;
-
     // Notify file queuing
     cmd.edit(&ctx.http, &format!("**{}** à été mit dans la file d'attente", message.attachments[0].filename)).await?;
 
@@ -230,8 +227,8 @@ pub async fn run(
     bucket.delete_object(id).await?;
     let filesize = res_files.bytes().len();
     
-    if filesize > (8 * 2_i32.pow(20)) as usize {
-        cmd.edit(&ctx.http, &format!("**{}** ne peut pas être envoyé car {:.2}Mo > 8Mo (limite de discord)", message.attachments[0].filename, filesize / 2_usize.pow(20))).await?;
+    if filesize > (25 * 2_i32.pow(20)) as usize {
+        cmd.edit(&ctx.http, &format!("**{}** ne peut pas être envoyé car {:.2}Mo > 25Mo (limite de discord)", message.attachments[0].filename, filesize / 2_usize.pow(20))).await?;
         return Ok(())
     }
 
