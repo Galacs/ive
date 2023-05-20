@@ -1,6 +1,5 @@
 use snafu::ResultExt;
-use std::{process::Stdio, path::{PathBuf, Path}, collections::HashMap};
-
+use std::{process::Stdio, path::{PathBuf, Path}};
 use models::*;
 
 extern crate ffmpeg_next as ffmpeg;
@@ -336,7 +335,7 @@ mod tests {
             "toz123".to_owned(),
         );
         
-        dbg!(get_streams(&video).await);
+        dbg!(get_streams(&video).await.unwrap());
 
         // cut(
         //     &video,

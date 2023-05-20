@@ -74,7 +74,7 @@ async fn get_streams(
 }
 
 async fn update_msg(
-    attachment: &Attachment,
+    _attachment: &Attachment,
     cmd: &ApplicationCommandInteraction,
     ctx: &Context,
     streams: &Vec<StreamState>,
