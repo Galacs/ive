@@ -8,7 +8,7 @@ use serenity::{
     prelude::Context,
 };
 
-use models::{JobParameters, InteractionError, CutParameters};
+use models::{InteractionError, CutParameters, job};
 
 use crate::commands::edit::EditMessage;
 
@@ -16,7 +16,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context
-) -> Result<JobParameters, InteractionError> {
+) -> Result<job::Parameters, InteractionError> {
     // Display modal asking for target size
     interaction_reponse.create_interaction_response(&ctx.http, |response| {
         response
@@ -83,7 +83,7 @@ pub async fn get_info(
         (s, e) if (s, e) < (0.0, 0.0) => cmd.edit(&ctx.http, "Les nombres ne peuvent pas être négatives").await?,
         (s, e) if s == 0.0 && e == 0.0 => cmd.edit(&ctx.http, "Les deux nombres de peuvent pas valoir 0").await?,
         (s, e) if s > e => cmd.edit(&ctx.http, "Le debut de la vidéo doit être avant la fin").await?,
-        (s, e) => return Ok(JobParameters::Cut(CutParameters {start: Some(s as u32), end: Some(e as u32) }))
+        (s, e) => return Ok(job::Parameters::Cut(CutParameters {start: Some(s as u32), end: Some(e as u32) }))
     }
     Err(InteractionError::InvalidInput(models::InvalidInputError::Error))
 }

@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use queue::Queue;
 use serenity::async_trait;
 use serenity::builder::CreateApplicationCommand;
 use serenity::futures::StreamExt;
@@ -11,10 +12,7 @@ use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
 use crate::flows;
-use models::{EditError, InteractionError, JobProgress, Video};
-
-use models::Job;
-use queue::Queue;
+use models::{EditError, InteractionError, Video, job};
 
 #[async_trait]
 pub trait EditMessage {
@@ -182,7 +180,7 @@ pub async fn run(
         Some(id.to_owned()),
         attachment.filename.to_owned(),
     );
-    let job = Job::new(models::JobKind::Processing, Some(video), params);
+    let job = job::Job::new(job::Kind::Processing, Some(video), params);
 
     // Send job to redis queue
     job.send_job(&mut con).await?;
@@ -202,23 +200,23 @@ pub async fn run(
             .await
             .ok_or(InteractionError::Error)?
             .get_payload()?;
-        let progress: JobProgress = serde_json::from_str(&payload.as_str())?;
+        let progress: job::Progress = serde_json::from_str(&payload.as_str())?;
         match progress {
-            JobProgress::Started => {
+            job::Progress::Started => {
                 println!("Starting conversion...");
                 // Notify file queuing
                 cmd.edit(&ctx.http, &format!("Modification de **{}**...", message.attachments[0].filename)).await?;
             }
-            JobProgress::Done(fe) => {
+            job::Progress::Done(fe) => {
                 extension = fe;
                 break
             },
-            JobProgress::Progress(_) => todo!(),
-            JobProgress::Error(err) => {
+            job::Progress::Progress(_) => todo!(),
+            job::Progress::Error(err) => {
                     println!("Erreur du worker: {:?}", err);
                     return Err(InteractionError::Error);
             },
-            JobProgress::Response(_) => todo!(),
+            job::Progress::Response(_) => todo!(),
         }
     }
 

@@ -1,11 +1,10 @@
-use std::collections::HashMap;
-
 use s3::error::S3Error;
 use serde::{Deserialize, Serialize};
 use serenity::prelude::SerenityError;
 use snafu::Snafu;
 use thiserror::Error;
 
+pub mod job;
 
 #[derive(Error, Serialize, Deserialize, Debug)]
 pub enum EncodeToSizeError {
@@ -19,20 +18,6 @@ pub enum EncodeToSizeError {
 #[error("Encode error: {0}")]
 pub enum EncodeError {
     EncodeToSize(EncodeToSizeError),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum JobResponse {
-    GetStreams(Vec::<MediaStream>)
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum JobProgress {
-    Started,
-    Progress(f32),
-    Error(String),
-    Response(JobResponse),
-    Done(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -83,35 +68,6 @@ pub struct Video {
     pub url: VideoURI,
     pub id: String,
     pub filename: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum JobKind {
-    Processing,
-    Parsing,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-
-pub enum JobParameters {
-    EncodeToSize(EncodeToSizeParameters),
-    Cut(CutParameters),
-    Remux(RemuxParameters),
-    GetStreams,
-    Combine(CombineParameters),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Job {
-    pub kind: JobKind,
-    pub video: Option<Video>,
-    pub params: JobParameters,
-}
-
-impl Job {
-    pub fn new(kind: JobKind, video: Option<Video>, params: JobParameters) -> Self {
-        Job { kind, video, params }
-    }
 }
 
 impl Video {

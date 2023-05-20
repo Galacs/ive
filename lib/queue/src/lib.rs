@@ -3,7 +3,7 @@ use redis::{AsyncCommands, RedisError};
 
 use async_trait::async_trait;
 use models::queue::QueueError;
-use models::*;
+use models::job::{self, Job};
 
 #[async_trait]
 pub trait Queue {
@@ -12,7 +12,7 @@ pub trait Queue {
 }
 
 #[async_trait]
-impl Queue for Job {
+impl Queue for job::Job {
     async fn send_job(&self, conn: &mut redis::aio::Connection) -> Result<u64, QueueError> {
         let serialized = serde_json::to_string(self)?;
         conn.lpush("queue", serialized).await?;
@@ -32,17 +32,19 @@ impl Queue for Job {
 
 #[cfg(test)]
 mod tests {
+    use models::{VideoURI, Video, EncodeToSizeParameters};
+
     use super::*;
 
     #[tokio::test]
     async fn it_works() {
         let client = redis::Client::open("redis://192.168.0.58/").unwrap();
         let mut con = client.get_async_connection().await.unwrap();
-        let job = Job::new(JobKind::Processing, Some(Video {
+        let job = job::Job::new(job::Kind::Processing, Some(Video {
             url: VideoURI::Url("https://cdn.discordapp.com/attachments/685197521953488994/1046181272319438969/edit-edit-edit-edit-edit-edit-edit-edit-edit-edit-out.mp4".to_string()),
             id: "sgfdvgsfsgvfsgvvd".to_owned(),
             filename: "toz.mp4".to_owned(),
-        }), JobParameters::EncodeToSize(EncodeToSizeParameters {
+        }), job::Parameters::EncodeToSize(EncodeToSizeParameters {
             target_size: 7 * 2_u32.pow(20),
         }));
 

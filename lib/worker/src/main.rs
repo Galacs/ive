@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use models::{JobParameters, Job, JobProgress, InteractionError, JobResponse, StreamKind};
+use models::{InteractionError, job::{Job, self}, StreamKind};
 use queue::Queue;
 use redis::{Client, Commands};
 use tokio::fs;
@@ -42,8 +42,8 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     let video = job.video.ok_or(ProcessError::NoVideo)?;
 
     match job.kind {
-        models::JobKind::Parsing => {},
-        models::JobKind::Processing => {
+        models::job::Kind::Parsing => {},
+        models::job::Kind::Processing => {
             // Define working directory and destination filepath
             let dir = Path::new("tmpfs").join(format!("{}", &video.id));
             let dir = std::env::current_dir()?.join(dir);
@@ -55,17 +55,17 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
 
     let channel = format!("progress:{}", video.id);
 
-    let str = serde_json::to_string(&JobProgress::Started)?;
+    let str = serde_json::to_string(&job::Progress::Started)?;
     let _: () = client.publish(&channel, str)?;
 
     let res = match &job.params {
-        JobParameters::EncodeToSize(p) => ffedit::encode_to_size(&video, p).await,
-        JobParameters::Cut(p) => ffedit::cut(&video, p).await,
-        JobParameters::Remux(p) => ffedit::remux(&video, p).await,
-        JobParameters::Combine(p) => ffedit::combine(&video, p).await,
-        JobParameters::GetStreams => {
+        job::Parameters::EncodeToSize(p) => ffedit::encode_to_size(&video, p).await,
+        job::Parameters::Cut(p) => ffedit::cut(&video, p).await,
+        job::Parameters::Remux(p) => ffedit::remux(&video, p).await,
+        job::Parameters::Combine(p) => ffedit::combine(&video, p).await,
+        job::Parameters::GetStreams => {
             if let Ok(res) = ffedit::get_streams(&video).await {
-                let _: () = client.publish(&channel,serde_json::to_string(&JobProgress::Response(JobResponse::GetStreams(res)))?)?;
+                let _: () = client.publish(&channel,serde_json::to_string(&job::Progress::Response(job::Response::GetStreams(res)))?)?;
             };
             return Ok(());
         },
@@ -73,7 +73,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
 
     match res {
         Err(err) => {
-            let _: () = client.publish(&channel, serde_json::to_string(&JobProgress::Error(format!("{}", err)))?)?;
+            let _: () = client.publish(&channel, serde_json::to_string(&job::Progress::Error(format!("{}", err)))?)?;
             println!("{}", err);
             return Err(ProcessError::Error)
         },
@@ -84,12 +84,12 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     tokio::fs::remove_dir_all(dir).await?;
 
     let file_extension = match job.params {
-        JobParameters::Remux(container) => container.container.get_file_extension(),
-        JobParameters::Combine(kind) => if let StreamKind::Audio = kind.output_kind { "mp3".to_owned() } else { "mp4".to_owned() },
+        job::Parameters::Remux(container) => container.container.get_file_extension(),
+        job::Parameters::Combine(kind) => if let StreamKind::Audio = kind.output_kind { "mp3".to_owned() } else { "mp4".to_owned() },
         _ => "mp4".to_owned(),
     };
 
-    let str = serde_json::to_string(&JobProgress::Done(file_extension.to_owned()))?;
+    let str = serde_json::to_string(&job::Progress::Done(file_extension.to_owned()))?;
     let _: () = client.publish(&channel, str)?;
     Ok(())
 }

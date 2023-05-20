@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration, num::NonZeroIsize,
-};
+use std::{collections::HashMap, time::Duration};
 
 use uuid::Uuid;
 
@@ -19,8 +16,7 @@ use serenity::{
 };
 
 use models::{
-    CombineParameters, CombineVideo, InteractionError, InvalidInputError, Job, JobParameters,
-    JobProgress, MediaStream, RemuxParameters, Video, VideoContainer, StreamKind,
+    job, CombineParameters, CombineVideo, InteractionError, MediaStream, StreamKind, Video,
 };
 
 use crate::commands::edit::{EditMessage, GetMessage};
@@ -40,10 +36,10 @@ async fn get_streams(
         Some(id.to_owned()),
         attachment.filename.to_owned(),
     );
-    let job = Job::new(
-        models::JobKind::Parsing,
+    let job = job::Job::new(
+        job::Kind::Parsing,
         Some(video),
-        JobParameters::GetStreams,
+        job::Parameters::GetStreams,
     );
 
     // Send job to redis queue
@@ -62,21 +58,21 @@ async fn get_streams(
             .await
             .ok_or(InteractionError::Error)?
             .get_payload()?;
-        let progress: JobProgress = serde_json::from_str(&payload.as_str())?;
+        let progress: job::Progress = serde_json::from_str(&payload.as_str())?;
         match progress {
-            JobProgress::Started => {
+            job::Progress::Started => {
                 cmd.edit(
                     &ctx.http,
                     &format!("Analyse de **{}**...", attachment.filename),
                 )
                 .await?;
             }
-            JobProgress::Error(err) => {
+            job::Progress::Error(err) => {
                 println!("Erreur du worker: {:?}", err);
                 return Err(InteractionError::Error);
             }
-            JobProgress::Response(res) => match res {
-                models::JobResponse::GetStreams(res) => return Ok(res),
+            job::Progress::Response(res) => match res {
+                job::Response::GetStreams(res) => return Ok(res),
             },
             _ => {}
         }
@@ -163,7 +159,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context,
-) -> Result<JobParameters, InteractionError> {
+) -> Result<job::Parameters, InteractionError> {
     // Create interaction response asking what edit to apply
     interaction_reponse.defer(&ctx.http).await?;
 
@@ -200,7 +196,7 @@ pub async fn get_info(
         // Await edit apply choice (with timeout)
         let interaction_reponse = &cmd.get_interaction_response(&ctx.http).await?;
         let interaction_id = cmd.id;
-    
+
         tokio::select! {
             i = interaction_reponse.await_component_interaction(&ctx).timeout(Duration::from_secs(60 * 3)) => {
                 let interaction = i.unwrap();
@@ -258,12 +254,16 @@ pub async fn get_info(
                     },
                 );
             }
-            hashmap.get_mut(&x.url)
+            hashmap
+                .get_mut(&x.url)
                 .unwrap()
                 .selected_streams
                 .push(x.stream.id);
         });
 
     let videos: Vec<CombineVideo> = hashmap.into_iter().map(|x| x.1).collect();
-    Ok(JobParameters::Combine(CombineParameters { videos, output_kind: kind.ok_or(InteractionError::Error)? }))
+    Ok(job::Parameters::Combine(CombineParameters {
+        videos,
+        output_kind: kind.ok_or(InteractionError::Error)?,
+    }))
 }
