@@ -24,6 +24,7 @@ rust-s3 = "0.32"
 snafu = { version = "0.7.4", features = [ "std", "backtraces", "futures"] }
 thiserror = "1.*"
 uuid = { version = "1.2.2", features = [ "v4", "fast-rng", "macro-diagnostics" ]}
+chrono = "0.4"
 
 [dependencies]
 serenity = { workspace = true }
@@ -35,3 +36,5 @@ redis = { workspace = true }
 config = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+chrono = { workspace = true }
+tokio-stream = "0.1"

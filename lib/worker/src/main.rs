@@ -43,6 +43,7 @@ impl From<error::Interaction> for ProcessError {
 }
 
 async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> {
+    dbg!(&job);
     let video = job.video.ok_or(ProcessError::NoVideo)?;
 
     match job.kind {
@@ -67,6 +68,7 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
         job::Parameters::Cut(p) => ffedit::cut(&video, p).await,
         job::Parameters::Remux(p) => ffedit::remux(&video, p).await,
         job::Parameters::Combine(p) => ffedit::combine(&video, p).await,
+        job::Parameters::Speed(p) => ffedit::speed(&video, p).await,
         job::Parameters::GetStreams => {
             if let Ok(res) = ffedit::get_streams(&video).await {
                 let _: () = client.publish(

@@ -83,6 +83,7 @@ impl<'a> FfmpegBuilder<'a> {
 
         self = self.option(Parameter::key_value("progress", &prog_url));
         let mut command = self.to_command();
+        dbg!(&command);
         let mut child = command.spawn().context(error::FfIoSnafu)?;
 
         let conn = listener.accept();

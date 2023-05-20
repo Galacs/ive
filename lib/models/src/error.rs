@@ -1,3 +1,5 @@
+use std::num::ParseIntError;
+
 use s3::error::S3Error;
 use serde::{Deserialize, Serialize};
 use serenity::prelude::SerenityError;
@@ -51,6 +53,8 @@ pub enum InvalidInput {
     Error,
     #[error("Invalid parse float Error: {0:?}")]
     StringParse(#[from] std::num::ParseFloatError),
+    #[error("Invalid parse int Error: {0:?}")]
+    StringIntParse(#[from] std::num::ParseIntError),
 }
 
 #[derive(Snafu, Debug)]
@@ -108,6 +112,13 @@ pub enum Worker {
     },
 }
 
+#[derive(Error, Debug)]
+pub enum Chrono {
+    #[error("Chrono out of range error: {0:?}")]
+    OutOfRange(#[from] chrono::OutOfRangeError),
+}
+
+
 #[derive(Debug)]
 pub enum Interaction {
     Queue(Queue),
@@ -121,6 +132,13 @@ pub enum Interaction {
     Redis(redis::RedisError),
     S3(S3Error),
     Serde(serde_json::Error),
+    Chrono(Chrono)
+}
+
+impl From<ParseIntError> for Interaction {
+    fn from(error: std::num::ParseIntError) -> Self {
+        Interaction::InvalidInput(InvalidInput::StringIntParse(error))
+    }
 }
 
 impl From<SerenityError> for Interaction {
@@ -150,6 +168,12 @@ impl From<redis::RedisError> for Interaction {
 impl From<S3Error> for Interaction {
     fn from(error: S3Error) -> Self {
         Interaction::S3(error)
+    }
+}
+
+impl From<chrono::OutOfRangeError> for Interaction {
+    fn from(error: chrono::OutOfRangeError) -> Self {
+        Interaction::Chrono(Chrono::OutOfRange(error))
     }
 }
 

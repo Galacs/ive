@@ -2,7 +2,6 @@ use std::{collections::HashMap, time::Duration};
 
 use uuid::Uuid;
 
-use queue::Queue;
 use serenity::{
     futures::StreamExt,
     model::prelude::{
@@ -21,29 +20,11 @@ use crate::commands::edit::{EditMessage, GetMessage};
 
 async fn get_streams(
     attachment: &Attachment,
-    id: &str,
     cmd: &ApplicationCommandInteraction,
     ctx: &Context,
+    video: &Video,
 ) -> Result<Vec<MediaStream>, error::Interaction> {
-    let client = config::get_redis_client();
-    let mut con = client.get_async_connection().await?;
-
-    // Build job obj
-    let video = Video::new(
-        models::VideoURI::Url(attachment.url.to_owned()),
-        Some(id.to_owned()),
-        attachment.filename.to_owned(),
-    );
-    let job = job::Job::new(job::Kind::Parsing, Some(video), job::Parameters::GetStreams);
-
-    // Send job to redis queue
-    job.send_job(&mut con).await?;
-
-    // Subscribe to status queue
-    let mut pubsub = client.get_async_connection().await?.into_pubsub();
-    let channel = format!("progress:{}", id);
-    pubsub.subscribe(&channel).await?;
-    let mut msg_stream = pubsub.into_on_message();
+    let mut msg_stream = crate::commands::edit::get_streams(&video).await?;
 
     // Wait for reponse
     loop {
@@ -153,6 +134,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context,
+    video: &Video,
 ) -> Result<job::Parameters, error::Interaction> {
     // Create interaction response asking what edit to apply
     interaction_reponse.defer(&ctx.http).await?;
@@ -168,19 +150,23 @@ pub async fn get_info(
     })
     .await?;
 
-    let mut streams: Vec<StreamState> =
-        get_streams(&sender_message.attachments[0], "crienclarue", &cmd, &ctx)
-            .await?
-            .into_iter()
-            .map(|x| StreamState {
-                uuid: Uuid::new_v4(),
-                filename: sender_message.attachments[0].filename.to_owned(),
-                stream: x,
-                is_selected: false,
-                is_kept: None,
-                url: sender_message.attachments[0].url.to_owned(),
-            })
-            .collect();
+    let mut streams: Vec<StreamState> = get_streams(
+        &sender_message.attachments[0],
+        &cmd,
+        &ctx,
+        &video,
+    )
+    .await?
+    .into_iter()
+    .map(|x| StreamState {
+        uuid: Uuid::new_v4(),
+        filename: sender_message.attachments[0].filename.to_owned(),
+        stream: x,
+        is_selected: false,
+        is_kept: None,
+        url: sender_message.attachments[0].url.to_owned(),
+    })
+    .collect();
 
     loop {
         if let Err(err) = update_msg(&sender_message.attachments[0], &cmd, &ctx, &streams).await {
@@ -216,7 +202,8 @@ pub async fn get_info(
             msg = cmd.user.await_reply(&ctx).filter(move |x| {
                 x.referenced_message.as_ref().unwrap().interaction.as_ref().unwrap().id == interaction_id
             }) => {
-                let s: Vec<StreamState> = get_streams(&msg.as_ref().unwrap().attachments[0], "crienclarue", &cmd, &ctx).await?.into_iter().map(|x| StreamState { uuid: Uuid::new_v4(), filename: msg.as_ref().unwrap().attachments[0].filename.to_owned(), stream: x, is_selected: false, is_kept: None, url: msg.as_ref().unwrap().attachments[0].url.to_owned() }).collect();
+                let s: Vec<StreamState> = get_streams(&msg.as_ref().unwrap().attachments[0],
+                 &cmd, &ctx, &video).await?.into_iter().map(|x| StreamState { uuid: Uuid::new_v4(), filename: msg.as_ref().unwrap().attachments[0].filename.to_owned(), stream: x, is_selected: false, is_kept: None, url: msg.as_ref().unwrap().attachments[0].url.to_owned() }).collect();
                 streams.extend(s);
             }
         };

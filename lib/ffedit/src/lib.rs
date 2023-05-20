@@ -209,6 +209,25 @@ pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), error::Wor
     Ok(())
 }
 
+pub async fn speed(video: &Video, params: &SpeedParameters) -> Result<(), error::Worker> {
+    let url = match &video.url {
+        VideoURI::Path(u) => u,
+        VideoURI::Url(u) => u,
+    };
+    let mut builder = FfmpegBuilder::default(url);
+        
+    let file = File::new("pipe:1").option(Parameter::key_value("f", "mp4"))
+    .option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
+    .option(Parameter::key_value("c:v", "libx264"))
+    .option(Parameter::key_value("filter:v", format!("setpts={}*PTS", 1.0/params.speed_factor)))
+    .option(Parameter::key_value("filter:a", format!("atempo={}", params.speed_factor)))
+    .option(Parameter::key_value("c:a", "aac"));
+    builder.outputs = vec![file];
+
+    builder.run_and_upload(&video.id).await?;
+    Ok(())
+}
+
 // Code without using lib
 
 // pub fn encode_to_size(path: &str, t_size: f32, dest_path: &str) -> Result<(), EncodeToSizeError> {

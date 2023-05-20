@@ -29,6 +29,7 @@ pub enum Parameters {
     Remux(RemuxParameters),
     GetStreams,
     Combine(CombineParameters),
+    Speed(SpeedParameters)
 }
 
 #[derive(Serialize, Deserialize, Debug)]

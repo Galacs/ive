@@ -32,6 +32,11 @@ pub struct CombineParameters {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct SpeedParameters {
+    pub speed_factor: f64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum VideoContainer {
     MP3, 
     MP4,
@@ -40,13 +45,13 @@ pub enum VideoContainer {
 }
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum VideoURI {
     Path(String),
     Url(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Video {
     pub url: VideoURI,
     pub id: String,

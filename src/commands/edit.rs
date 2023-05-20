@@ -10,6 +10,7 @@ use serenity::model::prelude::interaction::message_component::MessageComponentIn
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::model::prelude::Message;
 use serenity::prelude::Context;
+use tokio_stream::Stream;
 
 use crate::flows;
 use models::{error, job, Video};
@@ -70,6 +71,21 @@ impl GetMessage for ApplicationCommandInteraction {
     }
 }
 
+pub async fn get_streams(video: &Video) -> Result<impl Stream<Item = redis::Msg>, error::Interaction> {
+    let job = job::Job::new(job::Kind::Parsing, Some(video.to_owned()), job::Parameters::GetStreams);
+
+    let client = config::get_redis_client();
+    let mut con = client.get_async_connection().await?;
+    // Send job to redis queue
+    job.send_job(&mut con).await?;
+
+    // Subscribe to status queue
+    let mut pubsub = client.get_async_connection().await?.into_pubsub();
+    let channel = format!("progress:{}", video.id);
+    pubsub.subscribe(&channel).await?;
+    Ok(pubsub.into_on_message())
+}
+
 pub async fn run(
     cmd: &ApplicationCommandInteraction,
     ctx: &Context,
@@ -121,6 +137,9 @@ pub async fn run(
                                 });
                                 f.create_option(|o| {
                                     o.label("Combiner des medias (Preview)").value("combine")
+                                });
+                                f.create_option(|o| {
+                                    o.label("Changer la vitesse du média (Preview)").value("speed")
                                 })
                             })
                         })
@@ -141,33 +160,31 @@ pub async fn run(
         return Err(error::Interaction::Timeout);
     };
 
+    let attachment = &message.attachments[0];
+
+    // Build job obj
+    let video = Video::new(
+        models::VideoURI::Url(attachment.url.to_owned()),
+        Some(id.to_owned()),
+        attachment.filename.to_owned(),
+    );
+
     // Get edit kind from awaited interaction
     let edit_kind = &interaction_reponse.data.values[0].to_owned();
 
-    // Match edit kinds
+    // Match edit kinds and get job parameters
     let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &interaction_reponse, &ctx).await,
         "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx).await,
         "remux" => flows::remux::get_info(&cmd, &interaction_reponse, &ctx).await,
-        "combine" => flows::combine::get_info(&cmd, &interaction_reponse, &ctx).await,
+        "combine" => flows::combine::get_info(&cmd, &interaction_reponse, &ctx, &video).await,
+        "speed" => flows::speed::get_info(&cmd, &interaction_reponse, &ctx, &video).await,
         _ => return Err(error::Interaction::InvalidInput(error::InvalidInput::Error)),
     };
 
     let Ok(params) = params else {
         return Ok(())
     };
-
-    // let error_message;
-    // let params = match params {
-    //     Err(err) => {
-    //         error_message = match err {
-    //             _ => "salut",
-    //         };
-    //         edit_interaction(&cmd, &ctx, error_message).await?;
-    //         return Err(err);
-    //     }
-    //     Ok(p) => p,
-    // };
 
     // Notify file queuing
     cmd.edit(
@@ -179,17 +196,9 @@ pub async fn run(
     )
     .await?;
 
-    let attachment = message.attachments[0].clone();
-
     let client = config::get_redis_client();
     let mut con = client.get_async_connection().await?;
 
-    // Build job obj
-    let video = Video::new(
-        models::VideoURI::Url(attachment.url),
-        Some(id.to_owned()),
-        attachment.filename.to_owned(),
-    );
     let job = job::Job::new(job::Kind::Processing, Some(video), params);
 
     // Send job to redis queue
