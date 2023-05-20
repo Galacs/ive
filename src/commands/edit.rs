@@ -5,23 +5,31 @@ use queue::Queue;
 use serenity::async_trait;
 use serenity::builder::CreateApplicationCommand;
 use serenity::futures::StreamExt;
-use serenity::model::prelude::Message;
 use serenity::model::prelude::interaction::application_command::ApplicationCommandInteraction;
 use serenity::model::prelude::interaction::message_component::MessageComponentInteraction;
 use serenity::model::prelude::interaction::InteractionResponseType;
+use serenity::model::prelude::Message;
 use serenity::prelude::Context;
 
 use crate::flows;
-use models::{EditError, InteractionError, Video, job};
+use models::{error, job, Video};
 
 #[async_trait]
 pub trait EditMessage {
-    async fn edit(&self, http: &serenity::http::Http, message: &str) -> Result<(), InteractionError>;
+    async fn edit(
+        &self,
+        http: &serenity::http::Http,
+        message: &str,
+    ) -> Result<(), error::Interaction>;
 }
 
 #[async_trait]
 impl EditMessage for MessageComponentInteraction {
-    async fn edit(&self, http: &serenity::http::Http, message: &str) -> Result<(), InteractionError> {
+    async fn edit(
+        &self,
+        http: &serenity::http::Http,
+        message: &str,
+    ) -> Result<(), error::Interaction> {
         self.edit_original_interaction_response(http.as_ref(), |r| {
             r.content(message).components(|comp| comp)
         })
@@ -32,7 +40,11 @@ impl EditMessage for MessageComponentInteraction {
 
 #[async_trait]
 impl EditMessage for ApplicationCommandInteraction {
-    async fn edit(&self, http: &serenity::http::Http, message: &str) -> Result<(), InteractionError> {
+    async fn edit(
+        &self,
+        http: &serenity::http::Http,
+        message: &str,
+    ) -> Result<(), error::Interaction> {
         self.edit_original_interaction_response(http.as_ref(), |r| {
             r.content(message).components(|comp| comp)
         })
@@ -42,28 +54,26 @@ impl EditMessage for ApplicationCommandInteraction {
 }
 
 pub trait GetMessage {
-    fn get_message(&self) -> Result<&Message, InteractionError>;
+    fn get_message(&self) -> Result<&Message, error::Interaction>;
 }
 
 impl GetMessage for ApplicationCommandInteraction {
-    fn get_message(&self) -> Result<&Message, InteractionError> {
+    fn get_message(&self) -> Result<&Message, error::Interaction> {
         Ok(self
-        .data
-        .resolved
-        .messages
-        .iter()
-        .next()
-        .ok_or(InteractionError::Error)?
-        .1)
+            .data
+            .resolved
+            .messages
+            .iter()
+            .next()
+            .ok_or(error::Interaction::Error)?
+            .1)
     }
 }
-
-
 
 pub async fn run(
     cmd: &ApplicationCommandInteraction,
     ctx: &Context,
-) -> Result<(), InteractionError> {
+) -> Result<(), error::Interaction> {
     // Get message the command was called on
     let message = cmd.get_message()?;
     let id = cmd.token.to_owned();
@@ -79,7 +89,7 @@ pub async fn run(
                 })
         })
         .await?;
-        return Err(crate::InteractionError::Edit(EditError::WrongFileNumber(
+        return Err(error::Interaction::Edit(error::Edit::WrongFileNumber(
             number_of_files as u32,
         )));
     }
@@ -104,16 +114,13 @@ pub async fn run(
                                         .value("encode_to_size")
                                 });
                                 f.create_option(|o| {
-                                    o.label("Couper la video (Preview)")
-                                        .value("cut")
+                                    o.label("Couper la video (Preview)").value("cut")
                                 });
                                 f.create_option(|o| {
-                                    o.label("Changer le container (Preview)")
-                                        .value("remux")
+                                    o.label("Changer le container (Preview)").value("remux")
                                 });
                                 f.create_option(|o| {
-                                    o.label("Combiner des medias (Preview)")
-                                        .value("combine")
+                                    o.label("Combiner des medias (Preview)").value("combine")
                                 })
                             })
                         })
@@ -131,7 +138,7 @@ pub async fn run(
         .timeout(Duration::from_secs(60 * 3))
         .await else {
         cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
-        return Err(InteractionError::Timeout);
+        return Err(error::Interaction::Timeout);
     };
 
     // Get edit kind from awaited interaction
@@ -143,11 +150,7 @@ pub async fn run(
         "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx).await,
         "remux" => flows::remux::get_info(&cmd, &interaction_reponse, &ctx).await,
         "combine" => flows::combine::get_info(&cmd, &interaction_reponse, &ctx).await,
-        _ => {
-            return Err(InteractionError::InvalidInput(
-                models::InvalidInputError::Error,
-            ))
-        }
+        _ => return Err(error::Interaction::InvalidInput(error::InvalidInput::Error)),
     };
 
     let Ok(params) = params else {
@@ -167,7 +170,14 @@ pub async fn run(
     // };
 
     // Notify file queuing
-    cmd.edit(&ctx.http, &format!("**{}** à été mit dans la file d'attente", message.attachments[0].filename)).await?;
+    cmd.edit(
+        &ctx.http,
+        &format!(
+            "**{}** à été mit dans la file d'attente",
+            message.attachments[0].filename
+        ),
+    )
+    .await?;
 
     let attachment = message.attachments[0].clone();
 
@@ -198,24 +208,28 @@ pub async fn run(
         let payload: String = msg_stream
             .next()
             .await
-            .ok_or(InteractionError::Error)?
+            .ok_or(error::Interaction::Error)?
             .get_payload()?;
         let progress: job::Progress = serde_json::from_str(&payload.as_str())?;
         match progress {
             job::Progress::Started => {
                 println!("Starting conversion...");
                 // Notify file queuing
-                cmd.edit(&ctx.http, &format!("Modification de **{}**...", message.attachments[0].filename)).await?;
+                cmd.edit(
+                    &ctx.http,
+                    &format!("Modification de **{}**...", message.attachments[0].filename),
+                )
+                .await?;
             }
             job::Progress::Done(fe) => {
                 extension = fe;
-                break
-            },
+                break;
+            }
             job::Progress::Progress(_) => todo!(),
             job::Progress::Error(err) => {
-                    println!("Erreur du worker: {:?}", err);
-                    return Err(InteractionError::Error);
-            },
+                println!("Erreur du worker: {:?}", err);
+                return Err(error::Interaction::Error);
+            }
             job::Progress::Response(_) => todo!(),
         }
     }
@@ -224,19 +238,34 @@ pub async fn run(
     let res_files = bucket.get_object(&id).await?;
     bucket.delete_object(id).await?;
     let filesize = res_files.bytes().len();
-    
+
     if filesize > (25 * 2_i32.pow(20)) as usize {
-        cmd.edit(&ctx.http, &format!("**{}** ne peut pas être envoyé car {:.2}Mo > 25Mo (limite de discord)", message.attachments[0].filename, filesize / 2_usize.pow(20))).await?;
-        return Ok(())
+        cmd.edit(
+            &ctx.http,
+            &format!(
+                "**{}** ne peut pas être envoyé car {:.2}Mo > 25Mo (limite de discord)",
+                message.attachments[0].filename,
+                filesize / 2_usize.pow(20)
+            ),
+        )
+        .await?;
+        return Ok(());
     }
 
     // Notify file upload
-    cmd.edit(&ctx.http, &format!("Envoi de **{}** modifié...", message.attachments[0].filename)).await?;
+    cmd.edit(
+        &ctx.http,
+        &format!(
+            "Envoi de **{}** modifié...",
+            message.attachments[0].filename
+        ),
+    )
+    .await?;
 
     let mut path = PathBuf::new();
     path = path.join(Path::new(&attachment.filename));
     path.set_extension(extension);
-    let filename = path.to_str().ok_or(InteractionError::Error)?;
+    let filename = path.to_str().ok_or(error::Interaction::Error)?;
 
     cmd.channel_id
         .send_message(&ctx.http, |m| {
@@ -245,9 +274,15 @@ pub async fn run(
         })
         .await?;
 
-
     // Edit original interaction to notify sucess
-    cmd.edit(&ctx.http, &format!("**{}** à été modifié avec success", message.attachments[0].filename)).await?;
+    cmd.edit(
+        &ctx.http,
+        &format!(
+            "**{}** à été modifié avec success",
+            message.attachments[0].filename
+        ),
+    )
+    .await?;
 
     Ok(())
 }

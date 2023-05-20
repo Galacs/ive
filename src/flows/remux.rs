@@ -11,7 +11,7 @@ use serenity::{
 };
 
 use models::{
-    job, InteractionError, InvalidInputError,
+    job, error,
     RemuxParameters, VideoContainer,
 };
 
@@ -21,7 +21,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context
-) -> Result<job::Parameters, InteractionError> {
+) -> Result<job::Parameters, error::Interaction> {
     // Create interaction response asking what edit to apply
     interaction_reponse.defer(&ctx.http).await?;
 
@@ -53,7 +53,7 @@ pub async fn get_info(
         .timeout(Duration::from_secs(60 * 3))
         .await else {
         cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
-        return Err(InteractionError::Timeout);
+        return Err(error::Interaction::Timeout);
     };
 
     // Get edit kind from awaited interaction
@@ -61,8 +61,8 @@ pub async fn get_info(
         "mp4" => VideoContainer::MP4,
         "mkv" => VideoContainer::MKV,
         _ => {
-            return Err(models::InteractionError::InvalidInput(
-                InvalidInputError::Error,
+            return Err(error::Interaction::InvalidInput(
+                error::InvalidInput::Error,
             ))
         }
     };

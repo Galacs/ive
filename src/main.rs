@@ -4,7 +4,7 @@ mod utils;
 
 use std::env;
 
-use models::InteractionError;
+use models::error;
 use serenity::async_trait;
 use serenity::model::application::interaction::Interaction;
 use serenity::model::gateway::Ready;
@@ -23,7 +23,7 @@ impl EventHandler for Handler {
             let result = match command.data.name.as_str() {
                 "ping" => commands::ping::run(&command, &ctx).await,
                 "Edit video" => commands::edit::run(&command, &ctx).await,
-                _ => Err(InteractionError::NotImplemented),
+                _ => Err(error::Interaction::NotImplemented),
             };
             if let Err(why) = result {
                 let _ = command.edit_original_interaction_response(&ctx.http, |response| {

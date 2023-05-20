@@ -8,7 +8,7 @@ use serenity::{
     prelude::Context,
 };
 
-use models::{InteractionError, CutParameters, job};
+use models::{CutParameters, job, error};
 
 use crate::commands::edit::EditMessage;
 
@@ -16,7 +16,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context
-) -> Result<job::Parameters, InteractionError> {
+) -> Result<job::Parameters, error::Interaction> {
     // Display modal asking for target size
     interaction_reponse.create_interaction_response(&ctx.http, |response| {
         response
@@ -61,19 +61,19 @@ pub async fn get_info(
         Some(x) => x,
         None => {
             cmd.edit(&ctx.http, "T trop lent, j'ai pas ton temps").await?;
-            return Err(InteractionError::Timeout);
+            return Err(error::Interaction::Timeout);
         }
     };
     // Extract target size from modal response
     let start: &ActionRowComponent = &interaction.data.components[0].components[0];
     let start = match start {
         ActionRowComponent::InputText(txt) => txt.value.parse::<f32>()?,
-        _ => return Err(InteractionError::Error),
+        _ => return Err(error::Interaction::Error),
     };
     let end: &ActionRowComponent = &interaction.data.components[1].components[0];
     let end = match end {
         ActionRowComponent::InputText(txt) => txt.value.parse::<f32>()?,
-        _ => return Err(InteractionError::Error),
+        _ => return Err(error::Interaction::Error),
     };
 
     // Ack modal interaction
@@ -85,5 +85,5 @@ pub async fn get_info(
         (s, e) if s > e => cmd.edit(&ctx.http, "Le debut de la vidéo doit être avant la fin").await?,
         (s, e) => return Ok(job::Parameters::Cut(CutParameters {start: Some(s as u32), end: Some(e as u32) }))
     }
-    Err(InteractionError::InvalidInput(models::InvalidInputError::Error))
+    Err(error::Interaction::InvalidInput(error::InvalidInput::Error))
 }

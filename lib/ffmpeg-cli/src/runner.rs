@@ -1,9 +1,10 @@
 use std::time::Duration;
 
+use models::error;
 use snafu::prelude::*;
 use snafu::Location;
 
-use models::FfmpegError as Error;
+use models::error::Ffmpeg as Error;
 
 use futures::{
     channel::mpsc::{self, UnboundedReceiver, UnboundedSender},
@@ -76,20 +77,20 @@ impl<'a> FfmpegBuilder<'a> {
     ///
     /// This has to consume the builder for stdin, etc to work
     pub async fn run(mut self) -> Result<Ffmpeg> {
-        let listener = TcpListener::bind("127.0.0.1:0").await.context(models::FfIoSnafu)?;
-        let port = listener.local_addr().context(models::FfIoSnafu)?.port();
+        let listener = TcpListener::bind("127.0.0.1:0").await.context(error::FfIoSnafu)?;
+        let port = listener.local_addr().context(error::FfIoSnafu)?.port();
         let prog_url = format!("tcp://127.0.0.1:{}", port);
 
         self = self.option(Parameter::key_value("progress", &prog_url));
         let mut command = self.to_command();
-        let mut child = command.spawn().context(models::FfIoSnafu)?;
+        let mut child = command.spawn().context(error::FfIoSnafu)?;
 
         let conn = listener.accept();
         let status = child.wait();
 
         let conn = tokio::select! {
             conn = conn => {
-                conn.context(models::FfIoSnafu)?.0
+                conn.context(error::FfIoSnafu)?.0
             }
             s = status => {
                 let b = s.unwrap();
@@ -114,7 +115,7 @@ impl<'a> FfmpegBuilder<'a> {
                         }
                     }
                     Err(e) => {
-                        let _ = tx.send(Err(e).context(models::FfIoSnafu)).await;
+                        let _ = tx.send(Err(e).context(error::FfIoSnafu)).await;
                         tx.close_channel();
                     }
                 }

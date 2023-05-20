@@ -2,23 +2,23 @@ extern crate redis;
 use redis::{AsyncCommands, RedisError};
 
 use async_trait::async_trait;
-use models::queue::QueueError;
+use models::error;
 use models::job::{self, Job};
 
 #[async_trait]
 pub trait Queue {
-    async fn send_job(&self, conn: &mut redis::aio::Connection) -> Result<u64, QueueError>;
-    async fn receive_job(conn: &mut redis::aio::Connection) -> Result<Job, QueueError>;
+    async fn send_job(&self, conn: &mut redis::aio::Connection) -> Result<u64, error::Queue>;
+    async fn receive_job(conn: &mut redis::aio::Connection) -> Result<Job, error::Queue>;
 }
 
 #[async_trait]
 impl Queue for job::Job {
-    async fn send_job(&self, conn: &mut redis::aio::Connection) -> Result<u64, QueueError> {
+    async fn send_job(&self, conn: &mut redis::aio::Connection) -> Result<u64, error::Queue> {
         let serialized = serde_json::to_string(self)?;
         conn.lpush("queue", serialized).await?;
         Ok(conn.incr("nonce", 1).await?)
     }
-    async fn receive_job(conn: &mut redis::aio::Connection) -> Result<Job, QueueError> {
+    async fn receive_job(conn: &mut redis::aio::Connection) -> Result<Job, error::Queue> {
         let str = loop {
             let res: Result<String, RedisError> = conn.rpop("queue", None).await;
             if let Ok(s) = res {

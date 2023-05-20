@@ -15,9 +15,7 @@ use serenity::{
     prelude::Context,
 };
 
-use models::{
-    job, CombineParameters, CombineVideo, InteractionError, MediaStream, StreamKind, Video,
-};
+use models::{error, job, CombineParameters, CombineVideo, MediaStream, StreamKind, Video};
 
 use crate::commands::edit::{EditMessage, GetMessage};
 
@@ -26,7 +24,7 @@ async fn get_streams(
     id: &str,
     cmd: &ApplicationCommandInteraction,
     ctx: &Context,
-) -> Result<Vec<MediaStream>, InteractionError> {
+) -> Result<Vec<MediaStream>, error::Interaction> {
     let client = config::get_redis_client();
     let mut con = client.get_async_connection().await?;
 
@@ -36,11 +34,7 @@ async fn get_streams(
         Some(id.to_owned()),
         attachment.filename.to_owned(),
     );
-    let job = job::Job::new(
-        job::Kind::Parsing,
-        Some(video),
-        job::Parameters::GetStreams,
-    );
+    let job = job::Job::new(job::Kind::Parsing, Some(video), job::Parameters::GetStreams);
 
     // Send job to redis queue
     job.send_job(&mut con).await?;
@@ -56,7 +50,7 @@ async fn get_streams(
         let payload: String = msg_stream
             .next()
             .await
-            .ok_or(InteractionError::Error)?
+            .ok_or(error::Interaction::Error)?
             .get_payload()?;
         let progress: job::Progress = serde_json::from_str(&payload.as_str())?;
         match progress {
@@ -69,7 +63,7 @@ async fn get_streams(
             }
             job::Progress::Error(err) => {
                 println!("Erreur du worker: {:?}", err);
-                return Err(InteractionError::Error);
+                return Err(error::Interaction::Error);
             }
             job::Progress::Response(res) => match res {
                 job::Response::GetStreams(res) => return Ok(res),
@@ -84,7 +78,7 @@ async fn update_msg(
     cmd: &ApplicationCommandInteraction,
     ctx: &Context,
     streams: &Vec<StreamState>,
-) -> Result<(), InteractionError> {
+) -> Result<(), error::Interaction> {
     fn get_name(stream: &MediaStream) -> &str {
         match stream.kind {
             models::StreamKind::Video => "Video",
@@ -159,7 +153,7 @@ pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
     ctx: &Context,
-) -> Result<job::Parameters, InteractionError> {
+) -> Result<job::Parameters, error::Interaction> {
     // Create interaction response asking what edit to apply
     interaction_reponse.defer(&ctx.http).await?;
 
@@ -264,6 +258,6 @@ pub async fn get_info(
     let videos: Vec<CombineVideo> = hashmap.into_iter().map(|x| x.1).collect();
     Ok(job::Parameters::Combine(CombineParameters {
         videos,
-        output_kind: kind.ok_or(InteractionError::Error)?,
+        output_kind: kind.ok_or(error::Interaction::Error)?,
     }))
 }

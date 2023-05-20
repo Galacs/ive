@@ -13,20 +13,20 @@ use async_trait::async_trait;
 
 #[async_trait]
 pub trait Run {
-    async fn run_and_upload(self, id: &str) -> Result<(), WorkerError>;
+    async fn run_and_upload(self, id: &str) -> Result<(), error::Worker>;
 }
 
 #[async_trait]
 impl Run for FfmpegBuilder<'_> {
-    async fn run_and_upload(self, id: &str) -> Result<(), WorkerError> {
-        let ffmpeg = self.run().await.context(models::FfmpegSnafu)?;
+    async fn run_and_upload(self, id: &str) -> Result<(), error::Worker> {
+        let ffmpeg = self.run().await.context(error::FfmpegSnafu)?;
         let mut child = ffmpeg.process;
-        let mut stdout =  child.stdout.take().ok_or(models::WorkerError::Message { msg: "no child stdout".to_owned()})?;
+        let mut stdout =  child.stdout.take().ok_or(error::Worker::Message { msg: "no child stdout".to_owned()})?;
 
         let bucket = config::get_s3_bucket();
         let _res = bucket
             .put_object_stream(&mut stdout, &id)
-            .await.context(models::S3Snafu)?;
+            .await.context(error::S3Snafu)?;
         Ok(())
     }
 }
@@ -58,10 +58,10 @@ impl<'a> FfmpegBuilderDefault<'a> for FfmpegBuilder<'a> {
     }
 }
 
-pub async fn get_streams(video: &Video) -> Result<Vec::<MediaStream>, WorkerError> {
+pub async fn get_streams(video: &Video) -> Result<Vec::<MediaStream>, error::Worker> {
     let url = match &video.url {
         VideoURI::Url(p) => p,
-        _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI)).context(models::EncodeSnafu)?,
+        _ => return Err(error::Encode::EncodeToSize(error::EncodeToSize::UnsupportedURI)).context(error::EncodeSnafu)?,
     };
     ffmpeg::init().unwrap();
     let input = ffmpeg::format::input(url).unwrap();
@@ -87,10 +87,10 @@ pub fn get_working_dir(id: &String) -> Result<PathBuf, std::io::Error> {
     Ok(dir)
 }
 
-pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> Result<(), WorkerError> {
+pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> Result<(), error::Worker> {
     let url = match &video.url {
         VideoURI::Url(p) => p,
-        _ => return Err(EncodeError::EncodeToSize(EncodeToSizeError::UnsupportedURI)).context(models::EncodeSnafu)?,
+        _ => return Err(error::Encode::EncodeToSize(error::EncodeToSize::UnsupportedURI)).context(error::EncodeSnafu)?,
     };
 
     ffmpeg::init().unwrap();
@@ -102,12 +102,12 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     let t_minsize = (audio_rate as f32 * duration) / 8192_f32;
     let size: f32 = params.target_size as f32 / 2_f32.powf(20.0);
     if t_minsize > size {
-        return Err(EncodeError::EncodeToSize(EncodeToSizeError::TargetSizeTooSmall)).context(models::EncodeSnafu)?;
+        return Err(error::Encode::EncodeToSize(error::EncodeToSize::TargetSizeTooSmall)).context(error::EncodeSnafu)?;
     }
 
     let target_vrate = (size * 8192.0) / (1.048576 * duration) - audio_rate as f32;
 
-    let dir = get_working_dir(&video.id).context(models::IoSnafu)?;
+    let dir = get_working_dir(&video.id).context(error::IoSnafu)?;
     // dbg!(&dir);
     // tokio::fs::create_dir(&dir).await.unwrap();
 
@@ -118,7 +118,7 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     let audio_rate = format!("{}k", audio_rate);
 
     let a = dir.join(Path::new("pass"));
-    let passfile_prefix = a.to_str().ok_or(models::WorkerError::Message { msg: "passfile str conversion error".to_owned()})?;
+    let passfile_prefix = a.to_str().ok_or(error::Worker::Message { msg: "passfile str conversion error".to_owned()})?;
 
     let file = File::new("pipe:1").option(Parameter::key_value("f", "mp4"))
     .option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
@@ -129,7 +129,7 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     .option(Parameter::key_value("passlogfile", passfile_prefix));
     builder.outputs = vec![file];
 
-    builder.run().await.context(models::FfmpegSnafu)?.process.wait().await.context(models::IoSnafu)?;
+    builder.run().await.context(error::FfmpegSnafu)?.process.wait().await.context(error::IoSnafu)?;
  
     let mut builder = FfmpegBuilder::default(url);
 
@@ -147,7 +147,7 @@ pub async fn encode_to_size(video: &Video, params: &EncodeToSizeParameters) -> R
     Ok(())
 }
 
-pub async fn combine(video: &Video, params: &CombineParameters) -> Result<(), WorkerError> {
+pub async fn combine(video: &Video, params: &CombineParameters) -> Result<(), error::Worker> {
     dbg!(&params.output_kind);
     let url = match &video.url {
         VideoURI::Path(p) => p,
@@ -163,14 +163,14 @@ pub async fn combine(video: &Video, params: &CombineParameters) -> Result<(), Wo
     for (i, v) in params.videos.iter().enumerate() {
         builder = builder.input(File::new(&v.url));
         for s in v.selected_streams.iter() {
-            builder.outputs.first_mut().ok_or(WorkerError::Message { msg: "outputs vec empty".to_owned()})?.options.push(Parameter::key_value("map", format!("{i}:{s}")));
+            builder.outputs.first_mut().ok_or(error::Worker::Message { msg: "outputs vec empty".to_owned()})?.options.push(Parameter::key_value("map", format!("{i}:{s}")));
         }
     }
     builder.run_and_upload(&video.id).await?;
     Ok(())
 }
 
-pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), WorkerError> {
+pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), error::Worker> {
     let url = match &video.url {
         VideoURI::Path(p) => p,
         VideoURI::Url(u) => u,
@@ -192,7 +192,7 @@ pub async fn remux(video: &Video, params: &RemuxParameters) -> Result<(), Worker
     Ok(())
 }
 
-pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), WorkerError> {
+pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), error::Worker> {
     let url = match &video.url {
         VideoURI::Path(u) => u,
         VideoURI::Url(u) => u,

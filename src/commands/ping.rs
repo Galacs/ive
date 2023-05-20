@@ -3,12 +3,12 @@ use serenity::model::prelude::interaction::application_command::ApplicationComma
 use serenity::model::prelude::interaction::InteractionResponseType;
 use serenity::prelude::Context;
 
-use crate::InteractionError;
+use models::error;
 
 pub async fn run(
     cmd: &ApplicationCommandInteraction,
     ctx: &Context,
-) -> Result<(), InteractionError> {
+) -> Result<(), error::Interaction> {
     cmd.create_interaction_response(&ctx.http, |response| {
         response
             .kind(InteractionResponseType::ChannelMessageWithSource)

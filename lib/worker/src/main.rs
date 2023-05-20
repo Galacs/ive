@@ -1,6 +1,10 @@
 use std::path::Path;
 
-use models::{InteractionError, job::{Job, self}, StreamKind};
+use models::{
+    error,
+    job::{self, Job},
+    StreamKind,
+};
 use queue::Queue;
 use redis::{Client, Commands};
 use tokio::fs;
@@ -32,8 +36,8 @@ impl From<redis::RedisError> for ProcessError {
     }
 }
 
-impl From<InteractionError> for ProcessError {
-    fn from(_: InteractionError) -> Self {
+impl From<error::Interaction> for ProcessError {
+    fn from(_: error::Interaction) -> Self {
         ProcessError::Error
     }
 }
@@ -42,12 +46,12 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
     let video = job.video.ok_or(ProcessError::NoVideo)?;
 
     match job.kind {
-        models::job::Kind::Parsing => {},
+        models::job::Kind::Parsing => {}
         models::job::Kind::Processing => {
             // Define working directory and destination filepath
             let dir = Path::new("tmpfs").join(format!("{}", &video.id));
             let dir = std::env::current_dir()?.join(dir);
-    
+
             // Creating working directory
             fs::create_dir(&dir).await?;
         }
@@ -65,19 +69,27 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
         job::Parameters::Combine(p) => ffedit::combine(&video, p).await,
         job::Parameters::GetStreams => {
             if let Ok(res) = ffedit::get_streams(&video).await {
-                let _: () = client.publish(&channel,serde_json::to_string(&job::Progress::Response(job::Response::GetStreams(res)))?)?;
+                let _: () = client.publish(
+                    &channel,
+                    serde_json::to_string(&job::Progress::Response(job::Response::GetStreams(
+                        res,
+                    )))?,
+                )?;
             };
             return Ok(());
-        },
+        }
     };
 
     match res {
         Err(err) => {
-            let _: () = client.publish(&channel, serde_json::to_string(&job::Progress::Error(format!("{}", err)))?)?;
+            let _: () = client.publish(
+                &channel,
+                serde_json::to_string(&job::Progress::Error(format!("{}", err)))?,
+            )?;
             println!("{}", err);
-            return Err(ProcessError::Error)
-        },
-        Ok(_) => {},
+            return Err(ProcessError::Error);
+        }
+        Ok(_) => {}
     }
 
     let dir = ffedit::get_working_dir(&video.id)?;
@@ -85,7 +97,13 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
 
     let file_extension = match job.params {
         job::Parameters::Remux(container) => container.container.get_file_extension(),
-        job::Parameters::Combine(kind) => if let StreamKind::Audio = kind.output_kind { "mp3".to_owned() } else { "mp4".to_owned() },
+        job::Parameters::Combine(kind) => {
+            if let StreamKind::Audio = kind.output_kind {
+                "mp3".to_owned()
+            } else {
+                "mp4".to_owned()
+            }
+        }
         _ => "mp4".to_owned(),
     };
 
