@@ -199,10 +199,10 @@ pub async fn cut(video: &Video, params: &CutParameters) -> Result<(), error::Wor
     let mut builder = FfmpegBuilder::default(url);
 
     if let Some(time) = params.start {
-        builder = builder.option(Parameter::key_value("ss", time.to_string()));
+        builder = builder.option(Parameter::key_value("ss", time.as_secs_f64().to_string()));
     }
     if let Some(time) = params.end {
-        builder = builder.option(Parameter::key_value("to", time.to_string()));
+        builder = builder.option(Parameter::key_value("to", time.as_secs_f64().to_string()));
     }
     
     builder.run_and_upload(&video.id).await?;

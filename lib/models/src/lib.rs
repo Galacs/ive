@@ -10,8 +10,8 @@ pub struct EncodeToSizeParameters {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CutParameters {
-    pub start: Option<u32>,
-    pub end: Option<u32>,
+    pub start: Option<std::time::Duration>,
+    pub end: Option<std::time::Duration>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

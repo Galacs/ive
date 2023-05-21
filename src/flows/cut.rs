@@ -11,7 +11,7 @@ use serenity::{
 use models::{CutParameters, job, error, Video};
 use tokio_stream::StreamExt;
 
-use crate::{commands::edit::EditMessage, utils::durationparser::DisplayTimestamp};
+use crate::{commands::edit::EditMessage, utils::{durationparser::DisplayTimestamp, self}};
 
 pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
@@ -107,12 +107,12 @@ pub async fn get_info(
     // Extract target size from modal response
     let start: &ActionRowComponent = &interaction.data.components[0].components[0];
     let start = match start {
-        ActionRowComponent::InputText(txt) => txt.value.parse::<f32>()?,
+        ActionRowComponent::InputText(txt) => utils::durationparser::parse(&txt.value)?,
         _ => return Err(error::Interaction::Error),
     };
     let end: &ActionRowComponent = &interaction.data.components[1].components[0];
     let end = match end {
-        ActionRowComponent::InputText(txt) => txt.value.parse::<f32>()?,
+        ActionRowComponent::InputText(txt) => utils::durationparser::parse(&txt.value)?,
         _ => return Err(error::Interaction::Error),
     };
 
@@ -120,10 +120,10 @@ pub async fn get_info(
     interaction.defer(&ctx.http).await?;
 
     match (start, end) {
-        (s, e) if (s, e) < (0.0, 0.0) => cmd.edit(&ctx.http, "Les nombres ne peuvent pas être négatives").await?,
-        (s, e) if s == 0.0 && e == 0.0 => cmd.edit(&ctx.http, "Les deux nombres de peuvent pas valoir 0").await?,
+        (s, e) if (s, e) < (chrono::Duration::zero(), chrono::Duration::zero()) => cmd.edit(&ctx.http, "Les nombres ne peuvent pas être négatives").await?,
+        (s, e) if s.is_zero() && e.is_zero() => cmd.edit(&ctx.http, "Les deux nombres de peuvent pas valoir 0").await?,
         (s, e) if s > e => cmd.edit(&ctx.http, "Le debut de la vidéo doit être avant la fin").await?,
-        (s, e) => return Ok(job::Parameters::Cut(CutParameters {start: Some(s as u32), end: Some(e as u32) }))
+        (s, e) => return Ok(job::Parameters::Cut(CutParameters {start: Some(s.to_std()?), end: Some(e.to_std()?) }))
     }
     Err(error::Interaction::InvalidInput(error::InvalidInput::Error))
 }
