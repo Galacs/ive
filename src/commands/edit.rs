@@ -175,7 +175,7 @@ pub async fn run(
     // Match edit kinds and get job parameters
     let params = match edit_kind.as_str() {
         "encode_to_size" => flows::encode_to_size::get_info(&cmd, &interaction_reponse, &ctx).await,
-        "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx).await,
+        "cut" => flows::cut::get_info(&cmd, &interaction_reponse, &ctx, &video).await,
         "remux" => flows::remux::get_info(&cmd, &interaction_reponse, &ctx).await,
         "combine" => flows::combine::get_info(&cmd, &interaction_reponse, &ctx, &video).await,
         "speed" => flows::speed::get_info(&cmd, &interaction_reponse, &ctx, &video).await,

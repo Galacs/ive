@@ -8,15 +8,55 @@ use serenity::{
     prelude::Context,
 };
 
-use models::{CutParameters, job, error};
+use models::{CutParameters, job, error, Video};
+use tokio_stream::StreamExt;
 
-use crate::commands::edit::EditMessage;
+use crate::{commands::edit::EditMessage, utils::durationparser::DisplayTimestamp};
 
 pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
     interaction_reponse: &MessageComponentInteraction,
-    ctx: &Context
+    ctx: &Context,
+    video: &Video
 ) -> Result<job::Parameters, error::Interaction> {
+    // Query video lenght
+    let mut msg_stream = crate::commands::edit::get_streams(&video).await?;
+    cmd.edit(&ctx.http, &format!("Analyse de **{}**...", video.filename))
+        .await?;
+    // Wait for reponse
+    let micros = loop {
+        let payload: String = msg_stream
+            .next()
+            .await
+            .ok_or(error::Interaction::Error)?
+            .get_payload()?;
+        let progress: job::Progress = serde_json::from_str(&payload.as_str())?;
+        match progress {
+            job::Progress::Started => {}
+            job::Progress::Error(err) => {
+                println!("Erreur du worker: {:?}", err);
+                return Err(error::Interaction::Error);
+            }
+            job::Progress::Response(res) => match res {
+                job::Response::GetStreams(res) => {
+                    cmd.edit(
+                        &ctx.http,
+                        &format!(
+                            "Attente de la réponse de l'utilisateur pour **{}**...",
+                            video.filename
+                        ),
+                    )
+                    .await?;
+                    let stream = res.first().ok_or(error::Interaction::Error)?;
+                    break stream.duration;
+                }
+            },
+            job::Progress::Progress(_) => todo!(),
+            job::Progress::Done(_) => todo!(),
+        }
+    };
+    let duration = chrono::Duration::from_std(std::time::Duration::from_micros(micros as u64))?;
+
     // Display modal asking for target size
     interaction_reponse.create_interaction_response(&ctx.http, |response| {
         response
@@ -30,7 +70,7 @@ pub async fn get_info(
                         comp.create_action_row(|row| {
                             row.create_input_text(|menu| {
                                 menu.custom_id("start");
-                                menu.placeholder("en secondes");
+                                menu.placeholder(chrono::Duration::zero().display_timestamp());
                                 menu.style(InputTextStyle::Short);
                                 menu.label("Début");
                                 menu.max_length(10)
@@ -39,7 +79,7 @@ pub async fn get_info(
                         comp.create_action_row(|r| {
                             r.create_input_text(|menu| {
                                 menu.custom_id("end");
-                                menu.placeholder("en secondes");
+                                menu.placeholder(duration.display_timestamp());
                                 menu.style(InputTextStyle::Short);
                                 menu.label("Fin");
                                 menu.max_length(10)
