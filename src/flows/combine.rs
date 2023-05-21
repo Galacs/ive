@@ -179,7 +179,7 @@ pub async fn get_info(
 
         tokio::select! {
             i = interaction_reponse.await_component_interaction(&ctx).timeout(Duration::from_secs(60 * 3)) => {
-                let interaction = i.unwrap();
+                let Some(interaction) = i else { break };
                 if let Err(e) = interaction.defer(&ctx.http).await {
                     println!("{e}");
                 }
