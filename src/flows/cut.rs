@@ -56,6 +56,8 @@ pub async fn get_info(
         }
     };
     let duration = chrono::Duration::from_std(std::time::Duration::from_micros(micros as u64))?;
+    let display_timestamp = duration.display_timestamp()?;
+    let zero_timestamp = chrono::Duration::zero().display_timestamp()?;
 
     // Display modal asking for target size
     interaction_reponse.create_interaction_response(&ctx.http, |response| {
@@ -70,7 +72,7 @@ pub async fn get_info(
                         comp.create_action_row(|row| {
                             row.create_input_text(|menu| {
                                 menu.custom_id("start");
-                                menu.placeholder(chrono::Duration::zero().display_timestamp());
+                                menu.placeholder(zero_timestamp);
                                 menu.style(InputTextStyle::Short);
                                 menu.label("Début");
                                 menu.max_length(10)
@@ -79,7 +81,7 @@ pub async fn get_info(
                         comp.create_action_row(|r| {
                             r.create_input_text(|menu| {
                                 menu.custom_id("end");
-                                menu.placeholder(duration.display_timestamp());
+                                menu.placeholder(display_timestamp);
                                 menu.style(InputTextStyle::Short);
                                 menu.label("Fin");
                                 menu.max_length(10)

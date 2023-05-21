@@ -63,6 +63,8 @@ pub async fn get_info(
     let video_duration = std::time::Duration::from_micros(micros as u64);
     let duration = chrono::Duration::from_std(video_duration)?;
 
+    let display_timestamp = duration.display_timestamp()?;
+
     // Display modal asking for target size
     interaction_reponse
         .create_interaction_response(&ctx.http, |response| {
@@ -79,7 +81,7 @@ pub async fn get_info(
                                     menu.custom_id("speed_text");
                                     menu.placeholder(format!(
                                         "Durée actuelle: {}",
-                                        duration.display_timestamp()
+                                        display_timestamp
                                     ));
                                     menu.style(InputTextStyle::Short);
                                     menu.label("Vitesse");
