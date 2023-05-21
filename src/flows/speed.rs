@@ -14,7 +14,7 @@ use serenity::{
 use models::{error, job, SpeedParameters, Video};
 use tokio_stream::StreamExt;
 
-use crate::{commands::edit::EditMessage, utils};
+use crate::{commands::edit::EditMessage, utils::{self, durationparser::DisplayTimestamp}};
 
 pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
@@ -62,9 +62,6 @@ pub async fn get_info(
     // Format micros as video timestamp
     let video_duration = std::time::Duration::from_micros(micros as u64);
     let duration = chrono::Duration::from_std(video_duration)?;
-    let seconds = duration.num_seconds();
-    let minutes = duration.num_minutes();
-    let millis = duration.num_milliseconds();
 
     // Display modal asking for target size
     interaction_reponse
@@ -81,7 +78,8 @@ pub async fn get_info(
                                 row.create_input_text(|menu| {
                                     menu.custom_id("speed_text");
                                     menu.placeholder(format!(
-                                        "Durée actuelle: {minutes:0>2}:{seconds:0>2}:{millis:0>2}"
+                                        "Durée actuelle: {}",
+                                        duration.display_timestamp()
                                     ));
                                     menu.style(InputTextStyle::Short);
                                     menu.label("Vitesse");
