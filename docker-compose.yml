@@ -1,9 +1,15 @@
 services:
   ive:
+    depends_on:
+      - redis
+      - minio
     image: docker.ait-younes.fr/ive/ive
     env_file:
       - .env
   worker:
+    depends_on:
+      - redis
+      - minio
     image: docker.ait-younes.fr/ive/worker
     environment:
       - IVE_S3_URL=http://minio:9000
