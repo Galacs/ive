@@ -26,9 +26,12 @@ pub trait DisplayTimestamp {
 
 impl DisplayTimestamp for Duration {
     fn display_timestamp(&self) -> String {
-        let minutes = self.num_minutes();
-        let seconds = self.num_seconds();
-        let millis = self.num_milliseconds();
-        format!("{minutes:0>2}:{seconds:0>2}.{millis:0>2}")
+        let mut a = chrono::Duration::from(*self);
+        let minutes = a.num_minutes();
+        a = a - chrono::Duration::from_std(std::time::Duration::from_secs((a.num_minutes()*60) as u64)).unwrap();
+        let seconds = a.num_seconds();
+        a = a - chrono::Duration::from_std(std::time::Duration::from_secs(seconds as u64)).unwrap();
+        let millis = a.num_milliseconds();
+        format!("{minutes:0>2}:{seconds:0>2}.{millis}")
     }
 }
