@@ -106,7 +106,12 @@ async fn process_job(job: Job, client: &mut Client) -> Result<(), ProcessError> 
                 "mp4".to_owned()
             }
         }
-        _ => "mp4".to_owned(),
+        _ => Path::new(&video.filename)
+            .extension()
+            .ok_or(ProcessError::Error)?
+            .to_str()
+            .ok_or(ProcessError::Error)?
+            .to_owned(),
     };
 
     let str = serde_json::to_string(&job::Progress::Done(file_extension.to_owned()))?;
