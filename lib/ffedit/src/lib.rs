@@ -215,12 +215,32 @@ pub async fn speed(video: &Video, params: &SpeedParameters) -> Result<(), error:
         VideoURI::Url(u) => u,
     };
     let mut builder = FfmpegBuilder::default(url);
+
+    let mut atempo = "".to_owned();
+    let mut a = params.speed_factor;
+    let mut i = 0;
+    if a > 2.0 {
+        while a > 2.0 {
+            i += 1;
+            atempo += "atempo=2,";
+            a /= 2.0;
+        }
+        atempo += &format!("atempo={}", a);
+    } else if a < 0.5 {
+        while a < 0.5 {
+            i += 1;
+            atempo += "atempo=0.5,";
+            a *= 2.0;
+        }
+        atempo += &format!("atempo={}", a);
+        dbg!(&atempo);
+    }
         
     let file = File::new("pipe:1").option(Parameter::key_value("f", "mp4"))
     .option(Parameter::key_value("movflags", "frag_keyframe+empty_moov"))
     .option(Parameter::key_value("c:v", "libx264"))
     .option(Parameter::key_value("filter:v", format!("setpts={}*PTS", 1.0/params.speed_factor)))
-    .option(Parameter::key_value("filter:a", format!("atempo={}", params.speed_factor)))
+    .option(Parameter::key_value("filter:a", atempo))
     .option(Parameter::key_value("c:a", "aac"));
     builder.outputs = vec![file];
 
