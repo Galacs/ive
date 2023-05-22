@@ -234,6 +234,8 @@ pub async fn speed(video: &Video, params: &SpeedParameters) -> Result<(), error:
         }
         atempo += &format!("atempo={}", a);
         dbg!(&atempo);
+    } else {
+        atempo += &format!("atempo={}", a);
     }
         
     let file = File::new("pipe:1").option(Parameter::key_value("f", "mp4"))
