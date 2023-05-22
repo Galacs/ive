@@ -14,7 +14,10 @@ use serenity::{
 use models::{error, job, SpeedParameters, Video};
 use tokio_stream::StreamExt;
 
-use crate::{commands::edit::EditMessage, utils::{self, durationparser::DisplayTimestamp}};
+use crate::{
+    commands::edit::EditMessage,
+    utils::{self, durationparser::DisplayTimestamp},
+};
 
 pub async fn get_info(
     cmd: &ApplicationCommandInteraction,
@@ -84,8 +87,19 @@ pub async fn get_info(
                                         display_timestamp
                                     ));
                                     menu.style(InputTextStyle::Short);
-                                    menu.label("Vitesse");
-                                    menu.max_length(10)
+                                    menu.label("Nouvelle durée");
+                                    menu.max_length(10);
+                                    menu.required(false)
+                                })
+                            });
+                            comp.create_action_row(|row| {
+                                row.create_input_text(|menu| {
+                                    menu.custom_id("speed_factor_text");
+                                    menu.placeholder("Ex: 1,5 - 2 - 0.5");
+                                    menu.style(InputTextStyle::Short);
+                                    menu.label("Ou Vitesse");
+                                    menu.max_length(10);
+                                    menu.required(false)
                                 })
                             })
                         })
@@ -118,12 +132,17 @@ pub async fn get_info(
         _ => return Err(error::Interaction::Error),
     };
     let parsed = utils::durationparser::parse(end)?;
-    let speed_factor = duration
-        .num_microseconds()
-        .ok_or(error::Interaction::Error)? as f64
-        / parsed.num_microseconds().ok_or(error::Interaction::Error)? as f64;
-
-    dbg!(speed_factor);
+    let speed_factor = if parsed.is_zero() {
+        match &interaction.data.components[1].components[0] {
+            ActionRowComponent::InputText(txt) => &txt.value,
+            _ => return Err(error::Interaction::Error),
+        }.replace(",", ".").parse()?
+    } else {
+        duration
+            .num_microseconds()
+            .ok_or(error::Interaction::Error)? as f64
+            / parsed.num_microseconds().ok_or(error::Interaction::Error)? as f64
+    };
 
     // Ack modal interaction
     interaction.defer(&ctx.http).await?;
