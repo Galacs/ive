@@ -180,11 +180,7 @@ pub async fn run(
         "combine" => flows::combine::get_info(&cmd, &interaction_reponse, &ctx, &video).await,
         "speed" => flows::speed::get_info(&cmd, &interaction_reponse, &ctx, &video).await,
         _ => return Err(error::Interaction::InvalidInput(error::InvalidInput::Error)),
-    };
-
-    let Ok(params) = params else {
-        return Ok(())
-    };
+    }?;
 
     // Notify file queuing
     cmd.edit(
